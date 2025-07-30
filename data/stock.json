@@ -1,0 +1,11 @@
+{
+  "NF01": [
+    "akunflix1@email.com:pass123",
+    "akunflix2@email.com:pass456"
+  ],
+  "SP01": [
+    "akunspotifyA@email.com:rahasiaA",
+    "akunspotifyB@email.com:rahasiaB",
+    "akunspotifyC@email.com:rahasiaC"
+  ]
+}
