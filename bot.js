@@ -535,18 +535,25 @@ async function connectToWhatsApp() {
                     }
                     case '/beli': {
     // =================================================================
-    // ▼▼▼ LOGIKA BARU: CEK TRANSAKSI PENDING ▼▼▼
+    // ▼▼▼ LOGIKA BARU: CEK TRANSAKSI PENDING (VERSI FINAL) ▼▼▼
     // =================================================================
     const transactions = loadData(transactionsFilePath, {});
     const existingPendingOrder = Object.values(transactions).find(t => t.userId === senderId && t.status === 'PENDING');
 
+    // Cek jika user punya state konfirmasi ATAU punya order PENDING
     if (userState[senderId]?.state === 'awaiting_purchase_confirmation' || existingPendingOrder) {
         let replyMessage = "⚠️ *Anda sudah memiliki pesanan yang belum selesai.*\n\n";
+        
+        // --- BAGIAN YANG DIPERBAIKI ---
+        // Jika yang ada adalah order PENDING, sebutkan ID-nya
         if (existingPendingOrder) {
-            replyMessage += `Selesaikan pembayaran untuk pesanan \`${existingPendingOrder.orderId}\` terlebih dahulu.`;
-        } else {
-            replyMessage += "Silakan konfirmasi atau batalkan pesanan Anda saat ini sebelum membuat yang baru.";
+            replyMessage += `Selesaikan pembayaran untuk pesanan dengan ID: \`${existingPendingOrder.orderId}\` terlebih dahulu.`;
+        } 
+        // Jika tidak, berarti user sedang dalam state konfirmasi
+        else {
+            replyMessage += "Silakan balas `YA` atau `BATAL` untuk pesanan Anda saat ini sebelum membuat yang baru.";
         }
+        
         await sendFormattedMessage(from, replyMessage);
         reactionEmoji = '⏳';
         break; // Hentikan proses /beli
@@ -568,7 +575,6 @@ async function connectToWhatsApp() {
     let foundProduct = null;
     let foundVariation = null;
 
-    // Langkah 1: Loop untuk mencari produk
     for (const p of products) {
         if (p.variations && Array.isArray(p.variations)) {
             const v = p.variations.find(v => `${p.id}-${v.code}`.toLowerCase() === variationCode.toLowerCase());
@@ -580,14 +586,12 @@ async function connectToWhatsApp() {
         }
     }
     
-    // Langkah 2: Cek hasil pencarian SETELAH loop selesai
     if (!foundProduct) {
         await sendFormattedMessage(from, `Maaf, kode varian \`${variationCode}\` tidak ditemukan.`);
         reactionEmoji = '❌';
         break;
     }
 
-    // Langkah 3: Jika produk ditemukan, lanjutkan logika seperti biasa
     const stock = loadData(stockFilePath, {});
     const fullVariationCode = `${foundProduct.id}-${foundVariation.code}`;
     const availableStock = stock[fullVariationCode.toUpperCase()] ? stock[fullVariationCode.toUpperCase()].length : 0;
