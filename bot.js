@@ -534,6 +534,27 @@ async function connectToWhatsApp() {
                         break;
                     }
                     case '/beli': {
+    // =================================================================
+    // ▼▼▼ LOGIKA BARU: CEK TRANSAKSI PENDING ▼▼▼
+    // =================================================================
+    const transactions = loadData(transactionsFilePath, {});
+    const existingPendingOrder = Object.values(transactions).find(t => t.userId === senderId && t.status === 'PENDING');
+
+    if (userState[senderId]?.state === 'awaiting_purchase_confirmation' || existingPendingOrder) {
+        let replyMessage = "⚠️ *Anda sudah memiliki pesanan yang belum selesai.*\n\n";
+        if (existingPendingOrder) {
+            replyMessage += `Selesaikan pembayaran untuk pesanan \`${existingPendingOrder.orderId}\` terlebih dahulu.`;
+        } else {
+            replyMessage += "Silakan konfirmasi atau batalkan pesanan Anda saat ini sebelum membuat yang baru.";
+        }
+        await sendFormattedMessage(from, replyMessage);
+        reactionEmoji = '⏳';
+        break; // Hentikan proses /beli
+    }
+    // =================================================================
+    // ▲▲▲ AKHIR LOGIKA BARU ▲▲▲
+    // =================================================================
+
     const variationCode = args[0];
     const quantity = parseInt(args[1]) || 1;
 
@@ -547,33 +568,29 @@ async function connectToWhatsApp() {
     let foundProduct = null;
     let foundVariation = null;
 
-    // Langkah 1: Loop untuk mencari produk di seluruh daftar
+    // Langkah 1: Loop untuk mencari produk
     for (const p of products) {
         if (p.variations && Array.isArray(p.variations)) {
             const v = p.variations.find(v => `${p.id}-${v.code}`.toLowerCase() === variationCode.toLowerCase());
             if (v) {
                 foundProduct = p;
                 foundVariation = v;
-                break; // Hentikan loop jika sudah ketemu
+                break; 
             }
         }
     }
     
-    // ======================================================
-    // === BAGIAN YANG DIPERBAIKI ===
-    // Langkah 2: Cek HASIL pencarian SETELAH loop selesai
-    // ======================================================
+    // Langkah 2: Cek hasil pencarian SETELAH loop selesai
     if (!foundProduct) {
-        // Jika setelah semua produk dicek dan foundProduct masih null, baru kirim pesan error
         await sendFormattedMessage(from, `Maaf, kode varian \`${variationCode}\` tidak ditemukan.`);
         reactionEmoji = '❌';
-        break; // Hentikan case '/beli'
+        break;
     }
 
     // Langkah 3: Jika produk ditemukan, lanjutkan logika seperti biasa
     const stock = loadData(stockFilePath, {});
     const fullVariationCode = `${foundProduct.id}-${foundVariation.code}`;
-    const availableStock = stock[fullVariationCode.toUpperCase()] ? stock[fullVariationCode.toUpperCase()].length : 0; // Ditambah .toUpperCase() agar konsisten
+    const availableStock = stock[fullVariationCode.toUpperCase()] ? stock[fullVariationCode.toUpperCase()].length : 0;
     
     if (availableStock < quantity) {
         await sendFormattedMessage(from, `Maaf, stok untuk *${foundVariation.name}* tidak mencukupi. Sisa stok: ${availableStock}.`);
