@@ -534,57 +534,73 @@ async function connectToWhatsApp() {
                         break;
                     }
                     case '/beli': {
-                        const variationCode = args[0];
-                        const quantity = parseInt(args[1]) || 1;
-                        if (!variationCode) {
-                             await sendFormattedMessage(from, "Format salah. Gunakan `/beli <KODE_VARIAN>`.\n\n> Kamu bisa mendapatkan Kode Varian setelah melihat detail produk dari /katalog.");
-                             reactionEmoji = '❓';
-                             break;
-                        }
-                        
-                        const products = loadData(productsFilePath, []);
-                        let foundProduct = null;
-                        let foundVariation = null;
-                        for (const p of products) {
-                         if (p.variations && Array.isArray(p.variations)) { 
-                            const v = p.variations.find(v => `${p.id}-${v.code}`.toLowerCase() === variationCode.toLowerCase());
-                            if (v) {
-                                foundProduct = p;
-                                foundVariation = v;
-                                break;
-                            }
-                        }
-                        if (!foundProduct) {
-                            await sendFormattedMessage(from, `Maaf, kode varian \`${variationCode}\` tidak ditemukan.`);
-                            reactionEmoji = '❌';
-                            break;
-                        }
-                        const stock = loadData(stockFilePath, {});
-                        const fullVariationCode = `${foundProduct.id}-${foundVariation.code}`;
-                        const availableStock = stock[fullVariationCode] ? stock[fullVariationCode].length : 0;
-                        if (availableStock < quantity) {
-                            await sendFormattedMessage(from, `Maaf, stok untuk *${foundVariation.name}* tidak mencukupi. Sisa stok: ${availableStock}.`);
-                            reactionEmoji = '😥';
-                            break;
-                        }
-                        const totalPrice = foundVariation.price * quantity;
-                        let confirmationMessage = `*🛒 KONFIRMASI PESANAN*\n\n`;
-                        confirmationMessage += `Kamu akan membeli:\n`;
-                        confirmationMessage += `> *Produk:* ${foundProduct.name} - ${foundVariation.name}\n`;
-                        confirmationMessage += `> *Jumlah:* ${quantity}\n`;
-                        confirmationMessage += `> *Total Harga:* Rp ${totalPrice.toLocaleString('id-ID')}\n\n`;
-                        confirmationMessage += `*Panduan Pembayaran:*\n> Pembayaran akan menggunakan QRIS yang akan kedaluwarsa dalam 5 menit. Pastikan Kamu siap untuk melakukan scan.\n\nBalas dengan *YA* untuk melanjutkan, atau *BATAL* untuk membatalkan.`;
-                        const timeoutId = setTimeout(() => {
-                            if (userState[senderId] && userState[senderId].state === 'awaiting_purchase_confirmation') {
-                                delete userState[senderId];
-                                sock.sendMessage(from, { text: "⏳ Waktu konfirmasi habis, pesanan otomatis dibatalkan." });
-                            }
-                        }, 300000);
-                        userState[senderId] = { state: 'awaiting_purchase_confirmation', variationCode: fullVariationCode.toUpperCase(), quantity: quantity, timeoutId: timeoutId };
-                        await sendFormattedMessage(from, confirmationMessage);
-                        reactionEmoji = '🤔';
-                        break;
-                    }
+    const variationCode = args[0];
+    const quantity = parseInt(args[1]) || 1;
+
+    if (!variationCode) {
+        await sendFormattedMessage(from, "Format salah. Gunakan `/beli <KODE_VARIAN>`.\n\n> Kamu bisa mendapatkan Kode Varian setelah melihat detail produk dari /katalog.");
+        reactionEmoji = '❓';
+        break;
+    }
+
+    const products = loadData(productsFilePath, []);
+    let foundProduct = null;
+    let foundVariation = null;
+
+    // Langkah 1: Loop untuk mencari produk di seluruh daftar
+    for (const p of products) {
+        if (p.variations && Array.isArray(p.variations)) {
+            const v = p.variations.find(v => `${p.id}-${v.code}`.toLowerCase() === variationCode.toLowerCase());
+            if (v) {
+                foundProduct = p;
+                foundVariation = v;
+                break; // Hentikan loop jika sudah ketemu
+            }
+        }
+    }
+    
+    // ======================================================
+    // === BAGIAN YANG DIPERBAIKI ===
+    // Langkah 2: Cek HASIL pencarian SETELAH loop selesai
+    // ======================================================
+    if (!foundProduct) {
+        // Jika setelah semua produk dicek dan foundProduct masih null, baru kirim pesan error
+        await sendFormattedMessage(from, `Maaf, kode varian \`${variationCode}\` tidak ditemukan.`);
+        reactionEmoji = '❌';
+        break; // Hentikan case '/beli'
+    }
+
+    // Langkah 3: Jika produk ditemukan, lanjutkan logika seperti biasa
+    const stock = loadData(stockFilePath, {});
+    const fullVariationCode = `${foundProduct.id}-${foundVariation.code}`;
+    const availableStock = stock[fullVariationCode.toUpperCase()] ? stock[fullVariationCode.toUpperCase()].length : 0; // Ditambah .toUpperCase() agar konsisten
+    
+    if (availableStock < quantity) {
+        await sendFormattedMessage(from, `Maaf, stok untuk *${foundVariation.name}* tidak mencukupi. Sisa stok: ${availableStock}.`);
+        reactionEmoji = '😥';
+        break;
+    }
+    
+    const totalPrice = foundVariation.price * quantity;
+    let confirmationMessage = `*🛒 KONFIRMASI PESANAN*\n\n`;
+    confirmationMessage += `Kamu akan membeli:\n`;
+    confirmationMessage += `> *Produk:* ${foundProduct.name} - ${foundVariation.name}\n`;
+    confirmationMessage += `> *Jumlah:* ${quantity}\n`;
+    confirmationMessage += `> *Total Harga:* Rp ${totalPrice.toLocaleString('id-ID')}\n\n`;
+    confirmationMessage += `*Panduan Pembayaran:*\n> Pembayaran akan menggunakan QRIS yang akan kedaluwarsa dalam 5 menit. Pastikan Kamu siap untuk melakukan scan.\n\nBalas dengan *YA* untuk melanjutkan, atau *BATAL* untuk membatalkan.`;
+    
+    const timeoutId = setTimeout(() => {
+        if (userState[senderId] && userState[senderId].state === 'awaiting_purchase_confirmation') {
+            delete userState[senderId];
+            sock.sendMessage(from, { text: "⏳ Waktu konfirmasi pembayaran habis, pesanan otomatis dibatalkan." });
+        }
+    }, 300000);
+    
+    userState[senderId] = { state: 'awaiting_purchase_confirmation', variationCode: fullVariationCode.toUpperCase(), quantity: quantity, timeoutId: timeoutId };
+    await sendFormattedMessage(from, confirmationMessage);
+    reactionEmoji = '🤔';
+    break;
+}
                     case '/panduan':
                     case '/carabeli': {
                         await sendFormattedMessage(from, PANDUAN_TEXT);
