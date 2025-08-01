@@ -1,0 +1,15 @@
+[
+  {
+    "id": "CVA",
+    "name": "CANVA",
+    "description": "Akses desain premium tanpa batas untuk semua kebutuhan kreatif kamu dengan Canva",
+    "totalSold": 0,
+    "variations": [
+      {
+        "code": "EDU",
+        "name": "MEMBER EDU",
+        "price": 15000
+      }
+    ]
+  }
+]
