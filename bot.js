@@ -546,6 +546,7 @@ async function connectToWhatsApp() {
                         let foundProduct = null;
                         let foundVariation = null;
                         for (const p of products) {
+                         if (p.variations && Array.isArray(p.variations)) { 
                             const v = p.variations.find(v => `${p.id}-${v.code}`.toLowerCase() === variationCode.toLowerCase());
                             if (v) {
                                 foundProduct = p;
