@@ -1,0 +1,15 @@
+{
+  "CANVA-EDU": [
+    "akun1@edu.com:pass1",
+    "akun2@edu.com:pass2"
+  ],
+  "CANVA-HEAD-G": [
+    "akun_head1@gmail.com:pass_head1"
+  ],
+  "CANVA-HEAD-NOGAR": [],
+  "NETFLIX-1M": [
+    "user1@netflix.com:nfpass1",
+    "user2@netflix.com:nfpass2",
+    "user3@netflix.com:nfpass3"
+  ]
+}
