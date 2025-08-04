@@ -152,11 +152,11 @@ function createHeaderQuote(from) {
         key: {
             remoteJid: from,
             id: 'NUSA_KARSA_HEADER',
-            fromMe: true,
-            participant: botJid
+            fromMe: false,
+            participant: '0@s.whatsapp.net'
         },
         message: {
-            conversation: `NUSA KARSA ✅\nSERVER TIME : ${getDynamicGreeting().serverTime}`
+            conversation: `*NUSA KARSA*\nSERVER TIME : ${getDynamicGreeting().serverTime}`
         }
     };
 }
@@ -452,7 +452,7 @@ async function connectToWhatsApp() {
 
                         const qrCodeUrl = midtransResponse.data.actions.find(a => a.name === 'generate-qr-code').url;
                         const transactions = loadData(transactionsFilePath, {});
-                        transactions[orderId] = { userId: senderId, productId: product.id, variationCode: variation.code, productName: `${product.name} - ${variation.name}`, quantity: quantity, status: "PENDING", createdAt: new Date().toISOString() };
+                        transactions[orderId] = { userId: senderId, productId: product.id, variationCode: variationCode, productName: `${product.name} - ${variation.name}`, quantity: quantity, status: "PENDING", createdAt: new Date().toISOString() };
                         saveData(transactionsFilePath, transactions);
 
                         const caption = `*🧾 TAGIHAN PEMBAYARAN*\n\nSilakan scan QRIS di atas untuk membayar pesanan \`${orderId}\`. Produk akan otomatis dikirim setelah pembayaran berhasil.\n\n> *PERHATIAN:* Link pembayaran ini akan kedaluwarsa dalam *5 menit*.`;
