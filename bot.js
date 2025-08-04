@@ -3,7 +3,7 @@
 // ======================================================
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage, isJidGroup } = require('@whiskeysockets/baileys');
 const pino = require('pino');
-const qrcode = require('qrcode'); 
+const qrcode = require('qrcode');
 const fs = require('fs');
 const axios = require('axios');
 const express = require('express');
@@ -21,13 +21,13 @@ const FERDEV_API_KEY = "key-arh";
 const BOT_VERSION = "3.3 - Stable";
 
 let botJid = '';
-let sock = null; 
+let sock = null;
 let userState = {};
 let greetedUsers = new Set();
 let userActivity = {};
 const botStartTime = DateTime.now().setZone('Asia/Jakarta');
 
-// KONEKSI KE REDIS 
+// KONEKSI KE REDIS
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL,
   token: process.env.UPSTASH_REDIS_REST_TOKEN,
@@ -35,16 +35,15 @@ const redis = new Redis({
 // AKHIR KONEKSI
 
 // Konfigurasi Anti-Spam & Anti-Telepon
-const SPAM_MESSAGE_LIMIT = 7; 
-const SPAM_TIME_LIMIT = 4000; 
-const CALL_COOLDOWN_SECONDS = 10; 
+const SPAM_MESSAGE_LIMIT = 7;
+const SPAM_TIME_LIMIT = 4000;
+const CALL_COOLDOWN_SECONDS = 10;
 let callHistory = new Map();
 
 // Path file data
 const dataDir = './data';
 const productsFilePath = `${dataDir}/products.json`;
 const stockFilePath = `${dataDir}/stock.json`;
-// transactions.json tidak dipakai lagi, diganti dengan completed_transactions.json
 const usersFilePath = `${dataDir}/users.json`;
 const blockedFilePath = `${dataDir}/blocked.json`;
 
@@ -102,7 +101,6 @@ Jika Kamu menemukan kendala, bug, atau memiliki pertanyaan bisnis, silakan hubun
 
 > *📞 Nomor WhatsApp:* wa.me/${OWNER_NUMBER}
 > *Catatan:* Mohon untuk chat saja dan jelaskan keperluan Kamu dengan jelas.`;
-
 
 // ======================================================
 // FUNGSI PEMUATAN & PENYIMPANAN DATA
@@ -186,20 +184,20 @@ const CS_CONSTITUTION = `Kamu adalah "CS Karsa", asisten Customer Service (CS) A
 **--- PENGETAHUAN WAJIB Kamu ---**
 * **Tujuan Toko:** Menjual produk digital secara otomatis via bot WhatsApp.
 * **Perintah Utama:**
-    * \\`/katalog\\` atau \\`/menu\\`: Menampilkan daftar produk. Pengguna harus membalas dengan nomor untuk melihat detail.
-    * \\`/beli <KODE_VARIAN>\\`: Perintah untuk membeli sebuah variasi produk. Kode ini didapat dari detail produk.
-    * \\`/riwayat\\`: Untuk pengguna melihat riwayat transaksi mereka yang sudah berhasil.
-    * \\`/panduan\\`: Menampilkan panduan lengkap cara berbelanja dari awal sampai akhir.
-    * \\`/produkpopuler\\`: Menunjukkan 5 produk yang paling banyak dibeli.
-    * \\`/info\\`: Menampilkan statistik untuk pengguna dan bot.
-    * \\`/owner\\`: Menampilkan kontak pemilik bot jika ada masalah serius.
+    * \`/katalog\` atau \`/menu\`: Menampilkan daftar produk. Pengguna harus membalas dengan nomor untuk melihat detail.
+    * \`/beli <KODE_VARIAN>\`: Perintah untuk membeli sebuah variasi produk. Kode ini didapat dari detail produk.
+    * \`/riwayat\`: Untuk pengguna melihat riwayat transaksi mereka yang sudah berhasil.
+    * \`/panduan\`: Menampilkan panduan lengkap cara berbelanja dari awal sampai akhir.
+    * \`/produkpopuler\`: Menunjukkan 5 produk yang paling banyak dibeli.
+    * \`/info\`: Menampilkan statistik untuk pengguna dan bot.
+    * \`/owner\`: Menampilkan kontak pemilik bot jika ada masalah serius.
 **--- ATURAN PERILAKU ---**
-1.  **FOKUS:** Selalu fokus pada konteks NUSA KARSA. Jangan menjawab pertanyaan di luar topik seperti cuaca, berita, atau pengetahuan umum yang tidak relevan, boleh jawab tapi tetap kembali mengarahkan ke tujuan utama bot yaitu toko digital NUSA KARSA dan pastikan produk yang dijual sesuai dengan toko digital nusa karsa, baik nama sampai varian produk nya.
-2.  **RAMAH & PROFESIONAL:** Gunakan bahasa Indonesia yang baik, sopan, dan mudah dimengerti. Sapa pengguna dengan ramah, gunakan sapaan Kamu bukan Anda.
-3.  **MENGARAHKAN, BUKAN MELAKUKAN:** Jika pengguna bertanya "bagaimana cara beli?", jelaskan langkah-langkahnya dan suruh mereka menggunakan perintah \\`/beli\\`. JANGAN mencoba memproses pembelian.
-4.  **TOLAK DENGAN SOPAN:** Jika pertanyaan benar-benar di luar topik, tolak dengan sopan. Contoh: "Mohon maaf, sebagai CS NUSA KARSA, saya hanya bisa membantu menjawab pertanyaan seputar produk dan layanan kami. Ada lagi yang bisa saya bantu terkait toko kami?"
-5.  **GUNAKAN FORMAT:** Gunakan format \\`monospace\\` untuk perintah (contoh: \\`/katalog\\`) dan format *italic* atau **bold** untuk penekanan.
-6.  **JANGAN MENGARANG:** Jika Kamu tidak tahu jawabannya, lebih baik sarankan pengguna untuk bertanya kepada \\`/owner\\`.
+1. **FOKUS:** Selalu fokus pada konteks NUSA KARSA. Jangan menjawab pertanyaan di luar topik seperti cuaca, berita, atau pengetahuan umum yang tidak relevan, boleh jawab tapi tetap kembali mengarahkan ke tujuan utama bot yaitu toko digital NUSA KARSA dan pastikan produk yang dijual sesuai dengan toko digital nusa karsa, baik nama sampai varian produk nya.
+2. **RAMAH & PROFESIONAL:** Gunakan bahasa Indonesia yang baik, sopan, dan mudah dimengerti. Sapa pengguna dengan ramah, gunakan sapaan Kamu bukan Anda.
+3. **MENGARAHKAN, BUKAN MELAKUKAN:** Jika pengguna bertanya "bagaimana cara beli?", jelaskan langkah-langkahnya dan suruh mereka menggunakan perintah \`/beli\`. JANGAN mencoba memproses pembelian.
+4. **TOLAK DENGAN SOPAN:** Jika pertanyaan benar-benar di luar topik, tolak dengan sopan. Contoh: "Mohon maaf, sebagai CS NUSA KARSA, saya hanya bisa membantu menjawab pertanyaan seputar produk dan layanan kami. Ada lagi yang bisa saya bantu terkait toko kami?"
+5. **GUNAKAN FORMAT:** Gunakan format \`monospace\` untuk perintah (contoh: \`/katalog\`) dan format *italic* atau **bold** untuk penekanan.
+6. **JANGAN MENGARANG:** Jika Kamu tidak tahu jawabannya, lebih baik sarankan pengguna untuk bertanya kepada \`/owner\`.
 `;
 
 async function askCS(question) {
@@ -253,10 +251,10 @@ function generateMenuText(isOwner) {
 // ======================================================
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
-    sock = makeWASocket({ 
-        logger: pino({ level: 'silent' }), 
-        auth: state, 
-        browser: ['Nusa Karsa', 'Chrome', '3.3.0'] 
+    sock = makeWASocket({
+        logger: pino({ level: 'silent' }),
+        auth: state,
+        browser: ['Nusa Karsa', 'Chrome', '3.3.0']
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -283,21 +281,19 @@ async function connectToWhatsApp() {
             if (fs.existsSync('qr.png')) {
                 fs.unlinkSync('qr.png');
             }
-            
+
             const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== DisconnectReason.loggedOut;
             console.log('🔴 Koneksi terputus karena:', lastDisconnect.error, ', menyambungkan kembali:', shouldReconnect);
-            
+
             if (shouldReconnect) {
                 connectToWhatsApp();
             }
         } else if (connection === 'open') {
             botJid = sock.user.id;
-            greetedUsers.clear(); 
+            greetedUsers.clear();
             console.log('✨ Bot Nusa Karsa berhasil tersambung!');
         }
     });
-
-    // --- SEMUA EVENT HANDLER LAINNYA HARUS DI DALAM FUNGSI INI ---
 
     sock.ev.on('call', async (calls) => {
         for (const call of calls) {
@@ -329,13 +325,13 @@ async function connectToWhatsApp() {
         let reactionEmoji = '';
         const from = msg.key.remoteJid;
         const senderId = from.endsWith('@g.us') ? msg.key.participant : from;
-        
+
         try {
             const ownerJid = `${OWNER_NUMBER}@s.whatsapp.net`;
             if (senderId !== ownerJid) {
                 let blocked = loadData(blockedFilePath, []);
                 if (blocked.includes(senderId)) return;
-                
+
                 const now = Date.now();
                 if (!userActivity[senderId]) userActivity[senderId] = { timestamps: [] };
                 userActivity[senderId].timestamps.push(now);
@@ -352,10 +348,10 @@ async function connectToWhatsApp() {
                     return;
                 }
             }
-            
+
             const body = msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.message?.imageMessage?.caption || msg.message?.videoMessage?.caption || "";
-            if(!body) return;
-            
+            if (!body) return;
+
             const userName = msg.pushName || "Pelanggan";
 
             const users = loadData(usersFilePath, {});
@@ -381,27 +377,27 @@ async function connectToWhatsApp() {
                         return await sendFormattedMessage(from, "Oke, Kamu telah keluar dari mode katalog.");
                     }
                     const choice = parseInt(body);
-                    const products = currentStateData.displayedProducts; 
+                    const products = currentStateData.displayedProducts;
                     if (!isNaN(choice) && choice > 0 && choice <= products.length) {
                         const product = products[choice - 1];
                         const stock = loadData(stockFilePath, {});
-                        
+
                         let detailMessage = `*📄 DETAIL PRODUK*\\n`;
                         detailMessage += `> *Produk:* ${product.name}\\n`;
                         detailMessage += `> *Total Terjual:* ${product.totalSold || 0}\\n`;
                         detailMessage += `> *Deskripsi:* ${product.description || 'Tidak ada deskripsi.'}\\n`;
-                        detailMessage += `> S&K: \\`/panduan\\`\\n\\n`;
+                        detailMessage += `> S&K: \`/panduan\`\\n\\n`;
                         detailMessage += `*VARIASI, HARGA & STOK:*\\n`;
 
                         product.variations.forEach(v => {
                             const variationCode = `${product.id}-${v.code}`;
                             const stockCount = stock[variationCode.toUpperCase()] ? stock[variationCode.toUpperCase()].length : 0;
-                            detailMessage += `> Kode Varian: \\`${variationCode}\\` \\n> Type: \\`${v.name}\\` \\n> Harga: Rp ${v.price.toLocaleString('id-ID')} \\n> Stok: *${stockCount}*\\n`;
+                            detailMessage += `> Kode Varian: \`${variationCode}\` \\n> Type: \`${v.name}\` \\n> Harga: Rp ${v.price.toLocaleString('id-ID')} \\n> Stok: *${stockCount}*\\n`;
                         });
-                        
+
                         const refreshTime = DateTime.now().setZone('Asia/Jakarta').toFormat('HH.mm.ss');
                         detailMessage += `\\n╰➤ Refresh stock at ${refreshTime} WIB\\n\\n`;
-                        detailMessage += `Untuk membeli, ketik \\`/beli\\` diikuti Kode Varian dan jumlah yang ingin dibeli.\\nContoh: \\`/beli ${product.id}-${product.variations[0].code} 1\\``;
+                        detailMessage += `Untuk membeli, ketik \`/beli\` diikuti Kode Varian dan jumlah yang ingin dibeli.\\nContoh: \`/beli ${product.id}-${product.variations[0].code} 1\``;
 
                         await sendFormattedMessage(from, detailMessage);
                         reactionEmoji = '📄';
@@ -409,7 +405,7 @@ async function connectToWhatsApp() {
                         await sendFormattedMessage(from, "Pilihan tidak valid. Silakan masukkan nomor produk yang benar, atau ketik `selesai` untuk keluar.");
                         reactionEmoji = '❓';
                     }
-                    return; 
+                    return;
                 }
 
                 if (currentStateData.state === 'awaiting_purchase_confirmation') {
@@ -419,14 +415,14 @@ async function connectToWhatsApp() {
                         const products = loadData(productsFilePath, []);
                         let product;
                         let variation;
-                        for(const p of products){
+                        for (const p of products) {
                             const v = p.variations.find(v => `${p.id}-${v.code}`.toLowerCase() === variationCode.toLowerCase());
-                            if(v){ product = p; variation = v; break; }
+                            if (v) { product = p; variation = v; break; }
                         }
 
                         const totalPrice = variation.price * quantity;
                         const orderId = `NK-${senderId.split('@')[0]}-${Date.now()}`;
-                        
+
                         const transactionDetails = {
                             transaction_details: { order_id: orderId, gross_amount: totalPrice },
                             payment_type: "qris",
@@ -447,7 +443,7 @@ async function connectToWhatsApp() {
                                         headers: { 'Authorization': 'Basic ' + Buffer.from(MIDTRANS_SERVER_KEY).toString('base64'), 'Content-Type': 'application/json', 'Accept': 'application/json' }
                                     });
                                     midtransResponse = await promiseWithTimeout(axiosPromise, 15000);
-                                    break; 
+                                    break;
                                 } catch (error) {
                                     console.error(`[Midtrans] Percobaan ke-${attempts} gagal:`, error.message);
                                     if (attempts >= maxAttempts) throw error;
@@ -463,7 +459,7 @@ async function connectToWhatsApp() {
                         }
 
                         const qrCodeUrl = midtransResponse.data.actions.find(a => a.name === 'generate-qr-code').url;
-                        
+
                         const transactionData = {
                             userId: senderId,
                             productId: product.id,
@@ -477,24 +473,22 @@ async function connectToWhatsApp() {
                         await redis.set(orderId, JSON.stringify(transactionData), { ex: 360 });
                         console.log(`[REDIS SAVE] Transaksi awal untuk ${orderId} berhasil disimpan.`);
 
-                        const caption = `*🧾 TAGIHAN PEMBAYARAN*\\n\\nSilakan scan QRIS di atas untuk membayar pesanan\\nID: \\`${orderId}\\`. Produk akan otomatis dikirim setelah pembayaran berhasil.\\n\\n*PERHATIAN:* Link pembayaran ini akan kedaluwarsa dalam *5 menit*.`;
+                        const caption = `*🧾 TAGIHAN PEMBAYARAN*\\n\\nSilakan scan QRIS di atas untuk membayar pesanan\\nID: \`${orderId}\`. Produk akan otomatis dikirim setelah pembayaran berhasil.\\n\\n*PERHATIAN:* Link pembayaran ini akan kedaluwarsa dalam *5 menit*.`;
                         const sentQRMessage = await sock.sendMessage(from, { image: { url: qrCodeUrl }, caption: caption });
-                        
+
                         transactionData.messageKey = sentQRMessage.key;
                         await redis.set(orderId, JSON.stringify(transactionData), { ex: 360 });
                         console.log(`[REDIS UPDATE] MessageKey untuk ${orderId} berhasil ditambahkan.`);
 
-                        // +++ LOG DIAGNOSTIK REDIS +++
                         try {
                             const testRead = await redis.get(orderId);
                             console.log(`[REDIS-VERIFY] Verifikasi setelah simpan. Data ditemukan: ${!!testRead}. Isi: ${testRead}`);
                         } catch (e) {
                             console.error(`[REDIS-VERIFY-ERROR] Gagal melakukan verifikasi: ${e.message}`);
                         }
-                        // +++ AKHIR LOG DIAGNOSTIK +++
-                        
+
                         reactionEmoji = '⏳';
-                        
+
                     } else if (lowerBody === 'batal') {
                         await sendFormattedMessage(from, "Baik, pesanan telah dibatalkan.");
                         reactionEmoji = '👍';
@@ -509,7 +503,7 @@ async function connectToWhatsApp() {
 
             if (userState[senderId] && isCmd) {
                 console.log(`[State] Pengguna ${senderId} keluar dari state '${userState[senderId].state}' karena ada perintah baru.`);
-                if(userState[senderId].timeoutId) clearTimeout(userState[senderId].timeoutId);
+                if (userState[senderId].timeoutId) clearTimeout(userState[senderId].timeoutId);
                 delete userState[senderId];
             }
 
@@ -517,7 +511,7 @@ async function connectToWhatsApp() {
                 const command = body.trim().split(/ +/)[0].toLowerCase();
                 const args = body.trim().split(/ +/).slice(1);
                 const ownerJid = `${OWNER_NUMBER}@s.whatsapp.net`;
-                
+
                 switch (command) {
                     case '/menu':
                     case '/help': {
@@ -533,9 +527,9 @@ async function connectToWhatsApp() {
                         const page = parseInt(args[0]) || 1;
                         const totalPages = Math.ceil(products.length / itemsPerPage) || 1;
                         if (page < 1 || page > totalPages) {
-                             await sendFormattedMessage(from, `Halaman tidak ditemukan. Hanya ada ${totalPages} halaman.`);
-                             reactionEmoji = '🤷';
-                             break;
+                            await sendFormattedMessage(from, `Halaman tidak ditemukan. Hanya ada ${totalPages} halaman.`);
+                            reactionEmoji = '🤷';
+                            break;
                         }
                         const startIndex = (page - 1) * itemsPerPage;
                         const productsOnPage = products.slice(startIndex, startIndex + itemsPerPage);
@@ -550,9 +544,9 @@ async function connectToWhatsApp() {
                             });
                             catalogMessage += `╰\\n\\n`;
                             catalogMessage += `(Balas dengan *nomor* untuk melihat detail produk)\\n\\n`;
-                            if (page < totalPages) catalogMessage += `(Ketik \\`/katalog ${page + 1}\\` untuk halaman selanjutnya)\\n\\n`;
+                            if (page < totalPages) catalogMessage += `(Ketik \`/katalog ${page + 1}\` untuk halaman selanjutnya)\\n\\n`;
                             catalogMessage += `*Shortcut Menu:*\\n`;
-                            catalogMessage += `> \\`/katalog\\`, \\`/beli\\`, \\`/riwayat\\`, \\`/panduan\\``;
+                            catalogMessage += `> \`/katalog\`, \`/beli\`, \`/riwayat\`, \`/panduan\``;
                             userState[senderId] = { state: 'awaiting_catalog_choice', displayedProducts: products };
                         }
                         await sendFormattedMessage(from, catalogMessage);
@@ -564,7 +558,7 @@ async function connectToWhatsApp() {
                         const quantity = parseInt(args[1]) || 1;
 
                         if (!variationCode) {
-                            await sendFormattedMessage(from, "Format salah. Gunakan `/beli <KODE_VARIAN>`.\\n\\n> Kamu bisa mendapatkan Kode Varian setelah melihat detail produk dari /katalog.");
+                            await sendFormattedMessage(from, "Format salah. Gunakan \`/beli <KODE_VARIAN>\`.\n\n> Kamu bisa mendapatkan Kode Varian setelah melihat detail produk dari /katalog.");
                             reactionEmoji = '❓';
                             break;
                         }
@@ -579,27 +573,27 @@ async function connectToWhatsApp() {
                                 if (v) {
                                     foundProduct = p;
                                     foundVariation = v;
-                                    break; 
+                                    break;
                                 }
                             }
                         }
-                        
+
                         if (!foundProduct) {
-                            await sendFormattedMessage(from, `Maaf, kode varian \\`${variationCode}\\` tidak ditemukan.`);
+                            await sendFormattedMessage(from, `Maaf, kode varian \`${variationCode}\` tidak ditemukan.`);
                             reactionEmoji = '❌';
-                            break; 
+                            break;
                         }
 
                         const stock = loadData(stockFilePath, {});
                         const fullVariationCode = `${foundProduct.id}-${foundVariation.code}`;
                         const availableStock = stock[fullVariationCode.toUpperCase()] ? stock[fullVariationCode.toUpperCase()].length : 0;
-                        
+
                         if (availableStock < quantity) {
                             await sendFormattedMessage(from, `Maaf, stok untuk *${foundVariation.name}* tidak mencukupi. Sisa stok: ${availableStock}.`);
                             reactionEmoji = '😥';
                             break;
                         }
-                        
+
                         const totalPrice = foundVariation.price * quantity;
                         let confirmationMessage = `*🛒 KONFIRMASI PESANAN*\\n\\n`;
                         confirmationMessage += `*Kamu akan membeli:*\\n`;
@@ -607,14 +601,14 @@ async function connectToWhatsApp() {
                         confirmationMessage += `> *Jumlah:* ${quantity}\\n`;
                         confirmationMessage += `> *Total Harga:* Rp ${totalPrice.toLocaleString('id-ID')}\\n\\n`;
                         confirmationMessage += `*Panduan Pembayaran:*\\n> Pembayaran akan menggunakan QRIS yang akan kedaluwarsa dalam 5 menit. Pastikan Kamu siap untuk melakukan scan.\\n\\nBalas dengan *YA* untuk melanjutkan, atau *BATAL* untuk membatalkan.`;
-                        
+
                         const timeoutId = setTimeout(() => {
                             if (userState[senderId] && userState[senderId].state === 'awaiting_purchase_confirmation') {
                                 delete userState[senderId];
                                 sock.sendMessage(from, { text: "⏳ Waktu konfirmasi pembayaran habis, pesanan otomatis dibatalkan." });
                             }
                         }, 300000);
-                        
+
                         userState[senderId] = { state: 'awaiting_purchase_confirmation', variationCode: fullVariationCode.toUpperCase(), quantity: quantity, timeoutId: timeoutId };
                         await sendFormattedMessage(from, confirmationMessage);
                         reactionEmoji = '🤔';
@@ -627,7 +621,6 @@ async function connectToWhatsApp() {
                         break;
                     }
                     case '/riwayat': {
-                        // KEMBALIKAN FUNGSI: Baca dari file completed_transactions.json
                         const transactions = loadData(`${dataDir}/completed_transactions.json`, {});
                         const usersData = loadData(usersFilePath, {});
                         const userTransactions = usersData[senderId]?.transactions || [];
@@ -651,7 +644,6 @@ async function connectToWhatsApp() {
                         break;
                     }
                     case '/produkpopuler': {
-                        // KEMBALIKAN FUNGSI: Baca dari file completed_transactions.json
                         const transactions = loadData(`${dataDir}/completed_transactions.json`, {});
                         const products = loadData(productsFilePath, []);
                         const salesCount = {};
@@ -680,7 +672,6 @@ async function connectToWhatsApp() {
                         break;
                     }
                     case '/info': {
-                        // KEMBALIKAN FUNGSI: Baca dari file completed_transactions.json
                         const users = loadData(usersFilePath, {});
                         const transactions = loadData(`${dataDir}/completed_transactions.json`, {});
                         const userId = senderId.split('@')[0];
@@ -693,26 +684,26 @@ async function connectToWhatsApp() {
                                 const product = products.find(p => p.id === t.productId);
                                 if (product && product.variations) {
                                     const variation = product.variations.find(v => `${product.id}-${v.code}`.toUpperCase() === t.variationCode.toUpperCase());
-                                    if(variation) userTotalSpent += variation.price * t.quantity;
+                                    if (variation) userTotalSpent += variation.price * t.quantity;
                                 }
                             }
                         });
                         let totalSold = 0;
                         let totalRevenue = 0;
                         Object.values(transactions).forEach(t => {
-                            if(t.status === 'COMPLETED') {
+                            if (t.status === 'COMPLETED') {
                                 totalSold += t.quantity;
                                 const products = loadData(productsFilePath, []);
                                 const product = products.find(p => p.id === t.productId);
                                 if (product && product.variations) {
                                     const variation = product.variations.find(v => `${product.id}-${v.code}`.toUpperCase() === t.variationCode.toUpperCase());
-                                    if(variation) totalRevenue += variation.price * t.quantity;
+                                    if (variation) totalRevenue += variation.price * t.quantity;
                                 }
                             }
                         });
                         const totalUsers = Object.keys(users).length;
                         const uptime = formatUptime(botStartTime);
-                        
+
                         let infoMessage = `Halo ${userName} 👋\\n\\n`;
                         infoMessage += `*User Info :*\\n`;
                         infoMessage += `└ ID : ${userId}\\n`;
@@ -725,9 +716,9 @@ async function connectToWhatsApp() {
                         infoMessage += `└ Uptime : ${uptime}\\n`;
                         infoMessage += `└ Ver : ${BOT_VERSION}\\n\\n`;
                         infoMessage += `*Shortcuts menu :*\\n`;
-                        infoMessage += `> \\`/katalog\\` – Cek stok produk\\n`;
-                        infoMessage += `> \\`/riwayat\\` – Cek riwayat pembelian\\n`;
-                        infoMessage += `> \\`/panduan\\` – Cara membeli`;
+                        infoMessage += `> \`/katalog\` – Cek stok produk\\n`;
+                        infoMessage += `> \`/riwayat\` – Cek riwayat pembelian\\n`;
+                        infoMessage += `> \`/panduan\` – Cara membeli`;
                         await sendFormattedMessage(from, infoMessage);
                         reactionEmoji = '📊';
                         break;
@@ -741,7 +732,7 @@ async function connectToWhatsApp() {
                     case '/bantuan': {
                         const question = args.join(' ');
                         if (!question) {
-                            const csGuide = `*🤖 CUSTOMER SERVICE AI - NUSA KARSA*\\n\\nAda yang bisa saya bantu? Silakan ajukan pertanyaan Kamu setelah perintah.\\n\\n> *Contoh:*\\n> \\`/cs bagaimana cara melihat riwayat pembelian saya?\\`\\n> \\`/cs apakah produk Netflix ready?\\`\\n\\nSaya akan berusaha menjawab pertanyaan seputar produk dan cara penggunaan bot.`;
+                            const csGuide = `*🤖 CUSTOMER SERVICE AI - NUSA KARSA*\\n\\nAda yang bisa saya bantu? Silakan ajukan pertanyaan Kamu setelah perintah.\\n\\n> *Contoh:*\\n> \`/cs bagaimana cara melihat riwayat pembelian saya?\`\\n> \`/cs apakah produk Netflix ready?\`\\n\\nSaya akan berusaha menjawab pertanyaan seputar produk dan cara penggunaan bot.`;
                             await sendFormattedMessage(from, csGuide);
                             reactionEmoji = '💬';
                             break;
@@ -757,7 +748,7 @@ async function connectToWhatsApp() {
                         const argsText = args.join(' ');
                         const parts = argsText.split('|').map(s => s.trim());
                         if (parts.length < 4) {
-                            await sendFormattedMessage(from, "Format salah.\\n`/tambahproduk ID|Nama|Deskripsi|KODE:NamaVarian:Harga`\\n\\n*Catatan:*\\n- Untuk menambah varian, gunakan ID produk yang sudah ada.");
+                            await sendFormattedMessage(from, "Format salah.\\n\`/tambahproduk ID|Nama|Deskripsi|KODE:NamaVarian:Harga\`\\n\\n*Catatan:*\\n- Untuk menambah varian, gunakan ID produk yang sudah ada.");
                             reactionEmoji = '❓';
                             break;
                         }
@@ -782,8 +773,8 @@ async function connectToWhatsApp() {
                                 await sendFormattedMessage(from, `✅ Produk baru *${name}* dengan ${newVariations.length} variasi berhasil dibuat.`);
                                 reactionEmoji = '✨';
                             }
-                        } catch(e) {
-                            await sendFormattedMessage(from, "Gagal memproses. Pastikan format variasi `KODE:NAMA:HARGA` sudah benar.");
+                        } catch (e) {
+                            await sendFormattedMessage(from, "Gagal memproses. Pastikan format variasi \`KODE:NAMA:HARGA\` sudah benar.");
                             reactionEmoji = '❌';
                         }
                         break;
@@ -793,25 +784,25 @@ async function connectToWhatsApp() {
                         const [productId, property, ...valueParts] = args;
                         const value = valueParts.join(' ');
                         if (!productId || !property || !value) {
-                             await sendFormattedMessage(from, "Format salah. Gunakan:\\n`/editproduk <ID_PRODUK> <properti> <nilai_baru>`\\n\\n*Properti yang bisa diubah:*\\n- `nama`\\n- `desk` (untuk deskripsi)");
-                             reactionEmoji = '❓';
-                             break;
+                            await sendFormattedMessage(from, "Format salah. Gunakan:\\n\`/editproduk <ID_PRODUK> <properti> <nilai_baru>\`\\n\\n*Properti yang bisa diubah:*\\n- `nama`\\n- `desk` (untuk deskripsi)");
+                            reactionEmoji = '❓';
+                            break;
                         }
                         const products = loadData(productsFilePath, []);
                         const productIndex = products.findIndex(p => p.id.toLowerCase() === productId.toLowerCase());
                         if (productIndex === -1) {
-                            await sendFormattedMessage(from, `Produk dengan ID \\`${productId}\\` tidak ditemukan.`);
+                            await sendFormattedMessage(from, `Produk dengan ID \`${productId}\` tidak ditemukan.`);
                             reactionEmoji = '❌';
                             break;
                         }
                         if (property.toLowerCase() === 'nama') {
                             products[productIndex].name = value;
-                            await sendFormattedMessage(from, `✅ Nama produk \\`${productId}\\` berhasil diubah menjadi *${value}*.`);
+                            await sendFormattedMessage(from, `✅ Nama produk \`${productId}\` berhasil diubah menjadi *${value}*.`);
                         } else if (property.toLowerCase() === 'desk') {
                             products[productIndex].description = value;
-                            await sendFormattedMessage(from, `✅ Deskripsi produk \\`${productId}\\` berhasil diubah.`);
+                            await sendFormattedMessage(from, `✅ Deskripsi produk \`${productId}\` berhasil diubah.`);
                         } else {
-                            await sendFormattedMessage(from, `Properti \\`${property}\\` tidak valid. Gunakan 'nama' atau 'desk'.`);
+                            await sendFormattedMessage(from, `Properti \`${property}\` tidak valid. Gunakan 'nama' atau 'desk'.`);
                             reactionEmoji = '❓';
                             return;
                         }
@@ -823,20 +814,20 @@ async function connectToWhatsApp() {
                         if (senderId !== ownerJid) return;
                         const [productId, count] = args;
                         if (!productId || isNaN(parseInt(count))) {
-                            await sendFormattedMessage(from, "Format salah. Gunakan: `/settotalsold <ID_PRODUK> <jumlah>`\\nContoh: `/settotalsold CANVA 1500`");
+                            await sendFormattedMessage(from, "Format salah. Gunakan: \`/settotalsold <ID_PRODUK> <jumlah>\`\\nContoh: \`/settotalsold CANVA 1500\`");
                             reactionEmoji = '❓';
                             break;
                         }
                         const products = loadData(productsFilePath, []);
                         const productIndex = products.findIndex(p => p.id.toLowerCase() === productId.toLowerCase());
                         if (productIndex === -1) {
-                            await sendFormattedMessage(from, `Produk dengan ID \\`${productId}\\` tidak ditemukan.`);
+                            await sendFormattedMessage(from, `Produk dengan ID \`${productId}\` tidak ditemukan.`);
                             reactionEmoji = '❌';
                             break;
                         }
                         products[productIndex].totalSold = parseInt(count);
                         saveData(productsFilePath, products);
-                        await sendFormattedMessage(from, `✅ Jumlah terjual untuk produk \\`${productId}\\` berhasil diatur ke *${count}*.`);
+                        await sendFormattedMessage(from, `✅ Jumlah terjual untuk produk \`${productId}\` berhasil diatur ke *${count}*.`);
                         reactionEmoji = '🔢';
                         break;
                     }
@@ -844,7 +835,7 @@ async function connectToWhatsApp() {
                         if (senderId !== ownerJid) return;
                         const [productId] = args;
                         if (!productId) {
-                            await sendFormattedMessage(from, "Format salah. Gunakan: `/hapusproduk <ID_PRODUK>`");
+                            await sendFormattedMessage(from, "Format salah. Gunakan: \`/hapusproduk <ID_PRODUK>\`");
                             reactionEmoji = '❓';
                             break;
                         }
@@ -852,11 +843,11 @@ async function connectToWhatsApp() {
                         const initialLength = products.length;
                         products = products.filter(p => p.id.toLowerCase() !== productId.toLowerCase());
                         if (products.length === initialLength) {
-                             await sendFormattedMessage(from, `Produk dengan ID \\`${productId}\\` tidak ditemukan.`);
-                             reactionEmoji = '❌';
+                            await sendFormattedMessage(from, `Produk dengan ID \`${productId}\` tidak ditemukan.`);
+                            reactionEmoji = '❌';
                         } else {
                             saveData(productsFilePath, products);
-                            await sendFormattedMessage(from, `✅ Produk \\`${productId}\\` berhasil dihapus dari katalog.`);
+                            await sendFormattedMessage(from, `✅ Produk \`${productId}\` berhasil dihapus dari katalog.`);
                             reactionEmoji = '🗑️';
                         }
                         break;
@@ -865,7 +856,7 @@ async function connectToWhatsApp() {
                         if (senderId !== ownerJid) return;
                         const [variationCode] = args;
                         if (!variationCode) {
-                            await sendFormattedMessage(from, "Format salah. Gunakan: `/hapusvarian <KODE_VARIAN>`\\nContoh: `/hapusvarian CANVA-EDU`");
+                            await sendFormattedMessage(from, "Format salah. Gunakan: \`/hapusvarian <KODE_VARIAN>\`\\nContoh: \`/hapusvarian CANVA-EDU\`");
                             reactionEmoji = '❓';
                             break;
                         }
@@ -880,18 +871,18 @@ async function connectToWhatsApp() {
                         }
                         const productIndex = products.findIndex(p => p.id.toLowerCase() === productId.toLowerCase());
                         if (productIndex === -1) {
-                             await sendFormattedMessage(from, `Produk dengan ID \\`${productId}\\` tidak ditemukan.`);
-                             reactionEmoji = '❌';
-                             break;
+                            await sendFormattedMessage(from, `Produk dengan ID \`${productId}\` tidak ditemukan.`);
+                            reactionEmoji = '❌';
+                            break;
                         }
                         const initialVarLength = products[productIndex].variations.length;
                         products[productIndex].variations = products[productIndex].variations.filter(v => v.code.toLowerCase() !== varCode.toLowerCase());
                         if (products[productIndex].variations.length === initialVarLength) {
-                            await sendFormattedMessage(from, `Varian dengan kode \\`${variationCode}\\` tidak ditemukan.`);
+                            await sendFormattedMessage(from, `Varian dengan kode \`${variationCode}\` tidak ditemukan.`);
                             reactionEmoji = '❌';
                         } else {
                             saveData(productsFilePath, products);
-                            await sendFormattedMessage(from, `✅ Varian \\`${variationCode}\\` berhasil dihapus.`);
+                            await sendFormattedMessage(from, `✅ Varian \`${variationCode}\` berhasil dihapus.`);
                             reactionEmoji = '🗑️';
                         }
                         break;
@@ -900,7 +891,7 @@ async function connectToWhatsApp() {
                         if (senderId !== ownerJid) return;
                         const [variationCode, ...newStockItems] = args;
                         if (!variationCode || newStockItems.length === 0) {
-                            await sendFormattedMessage(from, "Format salah. Gunakan:\\n`/tambahstok <KODE_VARIAN> <item1> <item2> ...`\\nContoh: `/tambahstok CANVA-EDU email:pass`" );
+                            await sendFormattedMessage(from, "Format salah. Gunakan:\\n\`/tambahstok <KODE_VARIAN> <item1> <item2> ...\`\\nContoh: \`/tambahstok CANVA-EDU email:pass\`");
                             reactionEmoji = '❓';
                             break;
                         }
@@ -909,7 +900,7 @@ async function connectToWhatsApp() {
                         if (!stock[upperVariationCode]) stock[upperVariationCode] = [];
                         stock[upperVariationCode].push(...newStockItems);
                         saveData(stockFilePath, stock);
-                        await sendFormattedMessage(from, `✅ Berhasil! ${newStockItems.length} item baru ditambahkan ke stok \\`${upperVariationCode}\\`.` );
+                        await sendFormattedMessage(from, `✅ Berhasil! ${newStockItems.length} item baru ditambahkan ke stok \`${upperVariationCode}\`.`);
                         reactionEmoji = '📦';
                         break;
                     }
@@ -919,12 +910,12 @@ async function connectToWhatsApp() {
                         const stock = loadData(stockFilePath, {});
                         let stockMessage = "*📦 LAPORAN STOK SAAT INI*\\n\\n";
                         products.forEach(p => {
-                            stockMessage += `*${p.name}* (\\`${p.id}\\`)\\n`;
+                            stockMessage += `*${p.name}* (\`${p.id}\`)\\n`;
                             if (p.variations && p.variations.length > 0) {
                                 p.variations.forEach(v => {
                                     const variationCode = `${p.id}-${v.code}`;
                                     const stockCount = stock[variationCode.toUpperCase()] ? stock[variationCode.toUpperCase()].length : 0;
-                                    stockMessage += `> \\`${v.name}\\`: ${stockCount} item\\n`;
+                                    stockMessage += `> \`${v.name}\`: ${stockCount} item\\n`;
                                 });
                             } else { stockMessage += `> (Tidak ada variasi)\\n`; }
                         });
@@ -946,9 +937,9 @@ async function connectToWhatsApp() {
                                 }
                                 let price = 0;
                                 const productInfo = products.find(p => p.id === t.productId);
-                                if(productInfo && productInfo.variations){
+                                if (productInfo && productInfo.variations) {
                                     const variationInfo = productInfo.variations.find(v => `${productInfo.id}-${v.code}`.toUpperCase() === t.variationCode.toUpperCase());
-                                    if(variationInfo) price = variationInfo.price;
+                                    if (variationInfo) price = variationInfo.price;
                                 }
                                 stats[t.productId].sold += t.quantity;
                                 stats[t.productId].revenue += t.quantity * price;
@@ -974,14 +965,14 @@ async function connectToWhatsApp() {
                         if (senderId !== ownerJid) return;
                         const numberToUnblock = args[0];
                         if (!numberToUnblock) {
-                            await sendFormattedMessage(from, `Gunakan format: \\`/unblock <nomor_wa>\\`\\nContoh: \\`/unblock 6281234567890\\`` );
+                            await sendFormattedMessage(from, `Gunakan format: \`/unblock <nomor_wa>\`\\nContoh: \`/unblock 6281234567890\``);
                             reactionEmoji = '❓';
                             break;
                         }
                         const targetJid = `${numberToUnblock.replace(/\\D/g, '')}@s.whatsapp.net`;
                         let blocked = loadData(blockedFilePath, []);
                         if (!blocked.includes(targetJid)) {
-                            await sendFormattedMessage(from, `Nomor tersebut tidak ada dalam daftar blokir bot.` );
+                            await sendFormattedMessage(from, `Nomor tersebut tidak ada dalam daftar blokir bot.`);
                             reactionEmoji = '🤔';
                             break;
                         }
@@ -1011,7 +1002,7 @@ async function connectToWhatsApp() {
                             }
                         }
                         if (!broadcastMessageContent && !mediaBuffer) {
-                            await sendFormattedMessage(from, `Gunakan format:\\n1. \\`/broadcast <pesan>\\`\\n2. Reply pesan teks, lalu ketik \\`/broadcast\\`\\n3. Kirim gambar/video dengan caption \\`/broadcast <pesan>\\``);
+                            await sendFormattedMessage(from, `Gunakan format:\\n1. \`/broadcast <pesan>\`\\n2. Reply pesan teks, lalu ketik \`/broadcast\`\\n3. Kirim gambar/video dengan caption \`/broadcast <pesan>\``);
                             reactionEmoji = '❓';
                             break;
                         }
@@ -1041,13 +1032,13 @@ async function connectToWhatsApp() {
                     }
                     case '/debugowner': {
                         if (senderId !== ownerJid) return;
-                        const debugText = `*⚙️ Info Debug Owner*\\n\\nBerikut adalah data yang digunakan untuk perbandingan:\\n\\n*1. senderId (Nomor Kamu menurut WA):*\\n\\`\\`\\`${senderId}\\`\\`\\`\\n\\n*2. ownerJid (Nomor dari .env):*\\n\\`\\`\\`${ownerJid}\\`\\`\\`\\n\\n*3. Hasil Perbandingan Langsung:*\\n\\`\\`\\`${senderId === ownerJid}\\`\\`\\`\\n\\n*Pastikan kedua nomor di atas sama persis, termasuk bagian belakang '@s.whatsapp.net' dan tidak ada spasi tersembunyi di file .env Kamu.*`;
+                        const debugText = `*⚙️ Info Debug Owner*\\n\\nBerikut adalah data yang digunakan untuk perbandingan:\\n\\n*1. senderId (Nomor Kamu menurut WA):*\\n\`\`\`${senderId}\`\`\`\\n\\n*2. ownerJid (Nomor dari .env):*\\n\`\`\`${ownerJid}\`\`\`\\n\\n*3. Hasil Perbandingan Langsung:*\\n\`\`\`${senderId === ownerJid}\`\`\`\\n\\n*Pastikan kedua nomor di atas sama persis, termasuk bagian belakang '@s.whatsapp.net' dan tidak ada spasi tersembunyi di file .env Kamu.*`;
                         await sock.sendMessage(from, { text: debugText });
                         reactionEmoji = '🐛';
                         break;
                     }
                     default:
-                        await sendFormattedMessage(from, `Maaf, perintah \\`${command}\\` tidak dikenali. Ketik \\`/menu\\` untuk melihat daftar perintah.` );
+                        await sendFormattedMessage(from, `Maaf, perintah \`${command}\` tidak dikenali. Ketik \`/menu\` untuk melihat daftar perintah.`);
                         reactionEmoji = '❓';
                         break;
                 }
@@ -1075,7 +1066,7 @@ async function connectToWhatsApp() {
             }
         }
     });
-} // <--- KURUNG KURAWAL PENUTUP UNTUK FUNGSI connectToWhatsApp()    
+}
 
 
 // ======================================================
@@ -1084,26 +1075,22 @@ async function connectToWhatsApp() {
 const app = express();
 const cookieParser = require('cookie-parser');
 const session = require('express-session');
-const path = require('path'); // Diperlukan untuk rute QR
+const path = require('path');
 
-// --- Setup Middleware untuk Express ---
-app.set('view engine', 'ejs'); // Set EJS sebagai view engine
+app.set('view engine', 'ejs');
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // Untuk membaca data dari form
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(session({
-    secret: 'rahasia-tersembunyi-nusa-karsa', // Ganti dengan secret key acak kamu sendiri
+    secret: 'rahasia-tersembunyi-nusa-karsa',
     resave: false,
     saveUninitialized: true,
-    cookie: { maxAge: 1000 * 60 * 60 * 24 } // Cookie berlaku selama 1 hari
+    cookie: { maxAge: 1000 * 60 * 60 * 24 }
 }));
 
 
-// --- RUTE PUBLIK (STATUS & QR) ---
-
-// Rute utama untuk menampilkan status bot
 app.get('/', (req, res) => {
-    const uptime = formatUptime(botStartTime); // Memanggil fungsi uptime
+    const uptime = formatUptime(botStartTime);
     res.status(200).send(`
         <style>
             body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; color: #333; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
@@ -1124,7 +1111,6 @@ app.get('/', (req, res) => {
     `);
 });
 
-// Rute untuk menampilkan QR Code
 app.get('/qr', (req, res) => {
     const qrImagePath = path.join(__dirname, 'qr.png');
     if (fs.existsSync(qrImagePath)) {
@@ -1134,10 +1120,6 @@ app.get('/qr', (req, res) => {
     }
 });
 
-
-// --- SISTEM AUTENTIKASI & DASHBOARD ADMIN ---
-
-// Middleware untuk Cek Login
 const checkAuth = (req, res, next) => {
     if (req.session.isLoggedIn) {
         next();
@@ -1146,7 +1128,6 @@ const checkAuth = (req, res, next) => {
     }
 };
 
-// Rute Halaman Login
 app.get('/login', (req, res) => {
     res.render('login', { error: null });
 });
@@ -1161,7 +1142,6 @@ app.post('/login', (req, res) => {
     }
 });
 
-// Rute Logout
 app.get('/logout', (req, res) => {
     req.session.destroy(err => {
         if (err) {
@@ -1172,14 +1152,12 @@ app.get('/logout', (req, res) => {
     });
 });
 
-// Rute Halaman Dashboard Utama
 app.get('/admin', checkAuth, (req, res) => {
     const products = loadData(productsFilePath, []);
     const stock = loadData(stockFilePath, {});
     res.render('dashboard', { products, stock });
 });
 
-// Rute untuk memproses penambahan stok
 app.post('/admin/add-stock', checkAuth, (req, res) => {
     const { variationCode, stockItems } = req.body;
     if (!variationCode || !stockItems) {
@@ -1202,12 +1180,10 @@ app.post('/admin/add-stock', checkAuth, (req, res) => {
     }
 });
 
-// Rute untuk Halaman Tambah Produk
 app.get('/admin/add-product', checkAuth, (req, res) => {
     res.render('add-product');
 });
 
-// Rute untuk memproses penambahan produk/varian
 app.post('/admin/add-product', checkAuth, (req, res) => {
     const { productId, productName, description, variationCode, variationName, price } = req.body;
     try {
@@ -1241,7 +1217,6 @@ app.post('/admin/add-product', checkAuth, (req, res) => {
     }
 });
 
-// Rute untuk Halaman Edit Produk
 app.get('/admin/edit-product/:productId', checkAuth, (req, res) => {
     const { productId } = req.params;
     const products = loadData(productsFilePath, []);
@@ -1253,7 +1228,6 @@ app.get('/admin/edit-product/:productId', checkAuth, (req, res) => {
     }
 });
 
-// Rute untuk memproses penyimpanan edit produk
 app.post('/admin/save-product', checkAuth, (req, res) => {
     const { productId, productName, description } = req.body;
     try {
@@ -1273,7 +1247,6 @@ app.post('/admin/save-product', checkAuth, (req, res) => {
     }
 });
 
-// Rute untuk menghapus produk
 app.post('/admin/delete-product', checkAuth, (req, res) => {
     const { productId } = req.body;
     try {
@@ -1287,7 +1260,6 @@ app.post('/admin/delete-product', checkAuth, (req, res) => {
     }
 });
 
-// Rute untuk menghapus varian
 app.post('/admin/delete-variation', checkAuth, (req, res) => {
     const { fullVariationCode } = req.body;
     try {
@@ -1307,7 +1279,6 @@ app.post('/admin/delete-variation', checkAuth, (req, res) => {
     }
 });
 
-// Rute untuk mengatur total terjual
 app.post('/admin/set-total-sold', checkAuth, (req, res) => {
     const { productId, totalSold } = req.body;
     try {
@@ -1334,19 +1305,17 @@ app.post('/webhook', async (req, res) => {
         const orderId = notification.order_id;
         const transactionStatus = notification.transaction_status;
         console.log(`[WEBHOOK] Notifikasi diterima untuk Order ID: ${orderId}, Status: ${transactionStatus}`);
-        
+
         if (!sock) {
             console.error(`[WEBHOOK FATAL] Koneksi WhatsApp (sock) tidak tersedia untuk Order ID: ${orderId}!`);
             return res.status(200).send('OK - sock not ready');
         }
-        
+
         if (transactionStatus === 'settlement' || transactionStatus === 'capture') {
-            // +++ LOG DIAGNOSTIK REDIS +++
             console.log(`[WEBHOOK-GET] Mencari kunci di Redis: "${orderId}"`);
             const transactionDataString = await redis.get(orderId);
             console.log('[WEBHOOK-GET-RESULT] Hasil dari Redis:', transactionDataString);
-            // +++ AKHIR LOG DIAGNOSTIK +++
-            
+
             if (!transactionDataString) {
                 console.warn(`[REDIS-WEBHOOK] Order ID (${orderId}) tidak ditemukan di Redis.`);
                 await sock.sendMessage(ownerJid, { text: `⚠️ *Peringatan Keamanan*\\n\\nBot menerima notifikasi pembayaran untuk Order ID ${orderId}, tapi data pesanan tidak ditemukan di Redis.` });
@@ -1359,9 +1328,9 @@ app.post('/webhook', async (req, res) => {
                 console.log(`[WEBHOOK INFO] Notifikasi untuk Order ID (${orderId}) diterima, tapi statusnya sudah '${orderData.status}'. Diabaikan.`);
                 return res.status(200).send('OK - already processed');
             }
-            
+
             const stock = loadData(stockFilePath, {});
-            
+
             let deliveredItems = [];
             const stockKey = orderData.variationCode.toUpperCase();
 
@@ -1370,17 +1339,15 @@ app.post('/webhook', async (req, res) => {
                     deliveredItems.push(stock[stockKey].shift());
                 }
             }
-            
+
             if (deliveredItems.length === orderData.quantity) {
                 orderData.status = "COMPLETED";
                 saveData(stockFilePath, stock);
-                
-                // +++ SIMPAN KE ARSIP BARU +++
+
                 const completedTransactions = loadData(`${dataDir}/completed_transactions.json`, {});
                 completedTransactions[orderId] = orderData;
                 saveData(`${dataDir}/completed_transactions.json`, completedTransactions);
                 console.log(`[ARSIP] Order ID ${orderId} telah diarsipkan ke completed_transactions.json.`);
-                // +++ AKHIR SIMPAN ARSIP +++
 
                 const users = loadData(usersFilePath, {});
                 if (users[orderData.userId]) {
@@ -1390,8 +1357,8 @@ app.post('/webhook', async (req, res) => {
                     users[orderData.userId].transactions.push(orderId);
                     saveData(usersFilePath, users);
                 }
-                
-                await redis.set(orderId, JSON.stringify(orderData), { ex: 86400 }); // Simpan di redis 1 hari
+
+                await redis.set(orderId, JSON.stringify(orderData), { ex: 86400 });
                 console.log(`[REDIS UPDATE] Order ID ${orderId} status diubah ke COMPLETED.`);
 
                 try {
@@ -1399,7 +1366,7 @@ app.post('/webhook', async (req, res) => {
                         timeZone: 'Asia/Jakarta', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
                         hour: '2-digit', minute: '2-digit'
                     });
-                    const productMessage = `\n*✅ PEMBAYARAN BERHASIL*\n\nTerima kasih telah berbelanja di NUSA KARSA. Pesananmu telah berhasil diproses ✨\n\nBerikut adalah detail produk yang Kamu beli, harap segera amankan data yang telah diberikan:\n\n🧾 *INVOICE PEMBELIAN*\n> *Nomor Pesanan:* \\`${orderId}\\`\n> *Tanggal Transaksi:* ${transactionDate} WIB\n> *Detail Produk:* ${orderData.productName}\n> *Jumlah:* ${orderData.quantity}\n> *Data:* \\`\\`\\`${deliveredItems.join('\\n')}\\`\\`\\``;
+                    const productMessage = `\n*✅ PEMBAYARAN BERHASIL*\n\nTerima kasih telah berbelanja di NUSA KARSA. Pesananmu telah berhasil diproses ✨\n\nBerikut adalah detail produk yang Kamu beli, harap segera amankan data yang telah diberikan:\n\n🧾 *INVOICE PEMBELIAN*\n> *Nomor Pesanan:* \`${orderId}\`\n> *Tanggal Transaksi:* ${transactionDate} WIB\n> *Detail Produk:* ${orderData.productName}\n> *Jumlah:* ${orderData.quantity}\n> *Data:* \`\`\`${deliveredItems.join('\\n')}\`\`\``;
                     await sendFormattedMessage(orderData.userId, productMessage);
                     console.log(`[PRODUK TERKIRIM] ${orderData.quantity} item ${orderData.variationCode} ke ${orderData.userId}`);
                     if (orderData.messageKey) {
@@ -1407,19 +1374,19 @@ app.post('/webhook', async (req, res) => {
                     }
                 } catch (deliveryError) {
                     console.error(`[WEBHOOK FATAL] GAGAL MENGIRIM PRODUK ke ${orderData.userId} untuk Order ID ${orderId}!`, deliveryError);
-                    await sock.sendMessage(ownerJid, { text: `🚨 *KESALAHAN KRITIS* 🚨\\n\\nBot GAGAL mengirim produk ke pelanggan untuk Order ID \\`${orderId}\\` meskipun pembayaran sudah LUNAS.\\n\\n*MOHON SEGERA KIRIM PRODUK MANUAL KE:* wa.me/${orderData.userId.split('@')[0]}` });
+                    await sock.sendMessage(ownerJid, { text: `🚨 *KESALAHAN KRITIS* 🚨\\n\\nBot GAGAL mengirim produk ke pelanggan untuk Order ID \`${orderId}\` meskipun pembayaran sudah LUNAS.\\n\\n*MOHON SEGERA KIRIM PRODUK MANUAL KE:* wa.me/${orderData.userId.split('@')[0]}` });
                 }
             } else {
                 console.error(`[STOK HABIS] Gagal kirim produk untuk Order ID ${orderId}. Stok tidak mencukupi.`);
-                await sendFormattedMessage(orderData.userId, `Mohon maaf, stok produk habis saat pembayaranmu diproses. Hubungi Owner dengan ID Pesanan ini untuk penanganan lebih lanjut: \\`${orderId}\\``);
-                await sock.sendMessage(ownerJid, { text: `⚠️ *PERHATIAN: STOK HABIS* ⚠️\\n\\nPembayaran LUNAS diterima untuk Order ID \\`${orderId}\\`, tapi stok produk habis. Segera hubungi pelanggan di wa.me/${orderData.userId.split('@')[0]}` });
+                await sendFormattedMessage(orderData.userId, `Mohon maaf, stok produk habis saat pembayaranmu diproses. Hubungi Owner dengan ID Pesanan ini untuk penanganan lebih lanjut: \`${orderId}\``);
+                await sock.sendMessage(ownerJid, { text: `⚠️ *PERHATIAN: STOK HABIS* ⚠️\\n\\nPembayaran LUNAS diterima untuk Order ID \`${orderId}\`, tapi stok produk habis. Segera hubungi pelanggan di wa.me/${orderData.userId.split('@')[0]}` });
             }
         }
         res.status(200).send('OK');
     } catch (error) {
         console.error("[WEBHOOK KESELURUHAN ERROR]", error);
-        if(sock) {
-             await sock.sendMessage(ownerJid, { text: `🚨 *ERROR TIDAK DIKENALI DI WEBHOOK* 🚨\\n\\nError: ${error.message}` });
+        if (sock) {
+            await sock.sendMessage(ownerJid, { text: `🚨 *ERROR TIDAK DIKENALI DI WEBHOOK* 🚨\\n\\nError: ${error.message}` });
         }
         res.status(500).send('Internal Server Error');
     }
@@ -1429,7 +1396,7 @@ app.post('/webhook', async (req, res) => {
 // --- JALANKAN SEMUANYA ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    ensureDbFolderExists(); // Pastikan folder database ada sebelum bot jalan
+    ensureDbFolderExists();
     console.log(`[SERVER] Server berjalan di port ${PORT}`);
-    connectToWhatsApp(); // Jalankan bot SETELAH server web siap
+    connectToWhatsApp();
 });
