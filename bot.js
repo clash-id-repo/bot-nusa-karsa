@@ -1299,37 +1299,60 @@ app.post('/admin/set-total-sold', checkAuth, (req, res) => {
 
 
 // Endpoint untuk cek status server
-
-// GANTI SELURUH FUNGSI INI
+// Endpoint untuk menerima notifikasi Webhook dari Midtrans (VERSI SANGAT AMAN)
 app.post('/webhook', async (req, res) => {
+    const ownerJid = `${OWNER_NUMBER}@s.whatsapp.net`;
     try {
         const notification = req.body;
-        console.log('[WEBHOOK] Notifikasi diterima:', JSON.stringify(notification, null, 2));
-        
-        // --- PENJAGA KONEKSI ---
-        if (!sock) {
-            console.error('[WEBHOOK ERROR] Koneksi WhatsApp (sock) tidak tersedia! Pesan tidak dapat dikirim.');
-            // Kirim respons OK ke Midtrans agar tidak coba kirim ulang, tapi catat errornya.
-            return res.status(200).send('OK - sock not ready');
-        }
-        
         const orderId = notification.order_id;
         const transactionStatus = notification.transaction_status;
+
+        console.log(`[WEBHOOK] Notifikasi diterima untuk Order ID: ${orderId}, Status: ${transactionStatus}`);
+        
+        // FITUR KEAMANAN 1: Pemeriksaan Koneksi Awal
+        if (!sock) {
+            console.error(`[WEBHOOK FATAL] Koneksi WhatsApp (sock) tidak tersedia untuk Order ID: ${orderId}! Pesan tidak dapat dikirim.`);
+            return res.status(200).send('OK - sock not ready');
+        }
         
         if (transactionStatus === 'settlement' || transactionStatus === 'capture') {
             const transactions = loadData(transactionsFilePath);
             const orderData = transactions[orderId];
             
-            if (orderData && orderData.status === 'PENDING') {
-                const stock = loadData(stockFilePath);
-                let deliveredItems = [];
-                
-                for (let i = 0; i < orderData.quantity; i++) {
-                    const item = stock[orderData.variationCode.toUpperCase()]?.shift();
-                    if (item) deliveredItems.push(item);
-                }
+            // FITUR KEAMANAN 2: Pemeriksaan Order ID
+            if (!orderData) {
+                console.warn(`[WEBHOOK PERINGATAN] Notifikasi diterima untuk Order ID (${orderId}) yang tidak ditemukan di database.`);
+                await sock.sendMessage(ownerJid, { text: `⚠️ *Peringatan Keamanan*\n\nBot menerima notifikasi pembayaran untuk Order ID \`${orderId}\`, tapi data pesanan tidak ditemukan. Mungkin ini adalah tes lama atau transaksi dari sistem lain.` });
+                return res.status(200).send('OK - order not found');
+            }
 
-                if (deliveredItems.length > 0) {
+            // FITUR KEAMANAN 3: Pemeriksaan Status Ganda
+            if (orderData.status !== 'PENDING') {
+                console.log(`[WEBHOOK INFO] Notifikasi untuk Order ID (${orderId}) diterima, tapi statusnya sudah '${orderData.status}'. Diabaikan untuk mencegah pengiriman ganda.`);
+                return res.status(200).send('OK - already processed');
+            }
+            
+            const stock = loadData(stockFilePath);
+            let deliveredItems = [];
+            const stockKey = orderData.variationCode.toUpperCase();
+
+            // Cek ketersediaan stok sebelum mengambil
+            if (stock[stockKey] && stock[stockKey].length >= orderData.quantity) {
+                // Ambil stok sejumlah yang dipesan
+                for (let i = 0; i < orderData.quantity; i++) {
+                    deliveredItems.push(stock[stockKey].shift());
+                }
+            }
+            
+            if (deliveredItems.length === orderData.quantity) {
+                // Stok berhasil diambil, update data SEBELUM mengirim pesan
+                orderData.status = "COMPLETED";
+                saveData(stockFilePath, stock);
+                saveData(transactionsFilePath, transactions);
+                console.log(`[DATA UPDATE] Order ID ${orderId} status diubah ke COMPLETED dan stok dikurangi.`);
+
+                // FITUR KEAMANAN 4: Penanganan Error Pengiriman Pesan
+                try {
                     const transactionDate = new Date(orderData.createdAt).toLocaleString('id-ID', {
                         timeZone: 'Asia/Jakarta',
                         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -1351,58 +1374,38 @@ Berikut adalah detail produk yang Kamu beli, harap segera amankan data yang tela
 > *Data:* \`\`\`${deliveredItems.join('\n')}\`\`\`
 `;
                     await sendFormattedMessage(orderData.userId, productMessage);
+                    console.log(`[PRODUK TERKIRIM] ${orderData.quantity} item ${orderData.variationCode} ke ${orderData.userId}`);
 
                     if (orderData.messageKey) {
-                        try {
-                            await sock.sendMessage(orderData.userId, { delete: orderData.messageKey });
-                            console.log(`[CLEANUP] Pesan tagihan untuk order ${orderId} berhasil dihapus.`);
-                        } catch (e) {
-                            console.error(`[CLEANUP] Gagal menghapus pesan tagihan untuk order ${orderId}:`, e);
-                        }
+                        await sock.sendMessage(orderData.userId, { delete: orderData.messageKey });
                     }
 
-                    // Update data user, produk, transaksi, dan stok
-                    const users = loadData(usersFilePath);
-                    if (users[orderData.userId]) {
-                        if (!users[orderData.userId].transactions) users[orderData.userId].transactions = [];
-                        users[orderData.userId].transactions.push(orderId);
-                        saveData(usersFilePath, users);
-                    }
-
-                    const products = loadData(productsFilePath, []);
-                    const productIndex = products.findIndex(p => p.id === orderData.productId);
-                    if(productIndex !== -1){
-                        if(!products[productIndex].totalSold) products[productIndex].totalSold = 0;
-                        products[productIndex].totalSold += orderData.quantity;
-                        saveData(productsFilePath, products);
-                    }
-
-                    orderData.status = "COMPLETED";
-                    saveData(transactionsFilePath, transactions);
-                    saveData(stockFilePath, stock);
-                    console.log(`[PRODUK TERKIRIM] ${orderData.quantity} item ${orderData.variationCode} ke ${orderData.userId}`);
-                } else {
-                    console.error(`[STOK HABIS] Gagal kirim produk untuk Order ID ${orderId}`);
-                    await sendFormattedMessage(orderData.userId, `Mohon maaf, terjadi masalah: stok produk habis tepat saat pembayaranmu diproses. Silakan hubungi Owner dengan menyertakan ID Pesanan ini untuk penanganan lebih lanjut: \`${orderId}\``);
-                    await sendFormattedMessage(`${OWNER_NUMBER}@s.whatsapp.net`, `⚠️ PERHATIAN: Stok habis untuk pesanan ${orderId}`);
+                } catch (deliveryError) {
+                    console.error(`[WEBHOOK FATAL] GAGAL MENGIRIM PRODUK ke ${orderData.userId} untuk Order ID ${orderId}!`, deliveryError);
+                    // Kirim notifikasi darurat ke Owner
+                    await sock.sendMessage(ownerJid, { text: `🚨 *KESALAHAN KRITIS* 🚨\n\nBot GAGAL mengirim produk ke pelanggan untuk Order ID \`${orderId}\` meskipun pembayaran sudah LUNAS dan data sudah diupdate.\n\n*MOHON SEGERA KIRIM PRODUK SECARA MANUAL KE NOMOR:* wa.me/${orderData.userId.split('@')[0]}` });
                 }
+
+            } else {
+                // FITUR KEAMANAN 5: Notifikasi Stok Habis yang Jelas
+                console.error(`[STOK HABIS] Gagal kirim produk untuk Order ID ${orderId}. Stok tidak mencukupi.`);
+                await sendFormattedMessage(orderData.userId, `Mohon maaf, terjadi masalah: stok produk habis tepat saat pembayaranmu diproses. Silakan hubungi Owner dengan menyertakan ID Pesanan ini untuk penanganan lebih lanjut: \`${orderId}\``);
+                await sock.sendMessage(ownerJid, { text: `⚠️ *PERHATIAN: STOK HABIS* ⚠️\n\nPembayaran LUNAS diterima untuk Order ID \`${orderId}\`, tapi stok produk habis. Segera hubungi pelanggan di wa.me/${orderData.userId.split('@')[0]}` });
             }
         }
         res.status(200).send('OK');
     } catch (error) {
-        console.error("[WEBHOOK ERROR]", error);
+        console.error("[WEBHOOK KESELURUHAN ERROR]", error);
+        // Kirim notifikasi jika ada error tak terduga
+        await sock.sendMessage(ownerJid, { text: `🚨 *ERROR TIDAK DIKENALI DI WEBHOOK* 🚨\n\nTerjadi error fatal saat memproses notifikasi. Cek log server segera!\n\nError: ${error.message}` });
         res.status(500).send('Internal Server Error');
     }
 });
 
 // --- JALANKAN SEMUANYA ---
 const PORT = process.env.PORT || 3000;
-
-// Pertama, jalankan fungsi koneksi WhatsApp
-connectToWhatsApp().then(() => {
-    // SETELAH koneksi WhatsApp siap, BARU jalankan server web
-    app.listen(PORT, () => {
-        ensureDbFolderExists(); // Pastikan folder database ada sebelum bot jalan
-        console.log(`[SERVER] Server berjalan di port ${PORT} dan siap menerima webhook.`);
-    });
-}).catch(err => console.error("Gagal memulai bot:", err));
+app.listen(PORT, () => {
+    ensureDbFolderExists(); // Pastikan folder database ada sebelum bot jalan
+    console.log(`[SERVER] Server berjalan di port ${PORT}`);
+    connectToWhatsApp(); // Jalankan bot SETELAH server web siap
+});
