@@ -1167,26 +1167,151 @@ app.post('/admin/add-stock', checkAuth, (req, res) => {
     }
 });
 
-
-// Endpoint untuk cek status server
-app.get('/', (req, res) => {
-    res.send('NUSA KARSA Bot Server is running!');
+// --- Rute untuk Halaman Tambah Produk ---
+app.get('/admin/add-product', checkAuth, (req, res) => {
+    res.render('add-product');
 });
 
-// Endpoint untuk menampilkan QR code dari file
-app.get('/qr', (req, res) => {
-    if (fs.existsSync(__dirname + '/qr.png')) {
-        res.sendFile(__dirname + '/qr.png');
-    } else {
-        res.status(404).send("QR code tidak tersedia. Silakan tunggu atau hubungkan ulang bot untuk memunculkan QR baru.");
+// --- Rute untuk memproses penambahan produk/varian ---
+app.post('/admin/add-product', checkAuth, (req, res) => {
+    const { productId, productName, description, variationCode, variationName, price } = req.body;
+    
+    try {
+        const products = loadData(productsFilePath, []);
+        const productIndex = products.findIndex(p => p.id.toUpperCase() === productId.toUpperCase());
+
+        const newVariation = {
+            code: variationCode.toUpperCase(),
+            name: variationName,
+            price: parseInt(price)
+        };
+
+        if (productIndex > -1) {
+            // Produk sudah ada, tambahkan varian baru
+            products[productIndex].variations.push(newVariation);
+        } else {
+            // Produk baru
+            if (!productName) {
+                return res.status(400).send('Nama produk wajib diisi untuk produk baru.');
+            }
+            const newProduct = {
+                id: productId.toUpperCase(),
+                name: productName,
+                description: description || '',
+                totalSold: 0,
+                variations: [newVariation]
+            };
+            products.push(newProduct);
+        }
+        
+        saveData(productsFilePath, products);
+        res.redirect('/admin');
+    } catch (error) {
+        console.error('[DASHBOARD ERROR] Gagal menambah produk/varian:', error);
+        res.status(500).send('Gagal menyimpan data.');
     }
 });
 
-// Endpoint untuk menerima notifikasi Webhook dari Midtrans
+// --- Rute untuk Halaman Edit Produk ---
+app.get('/admin/edit-product/:productId', checkAuth, (req, res) => {
+    const { productId } = req.params;
+    const products = loadData(productsFilePath, []);
+    const product = products.find(p => p.id.toUpperCase() === productId.toUpperCase());
+    if (product) {
+        res.render('edit-product', { product });
+    } else {
+        res.status(404).send('Produk tidak ditemukan.');
+    }
+});
+
+// --- Rute untuk memproses penyimpanan edit produk ---
+app.post('/admin/save-product', checkAuth, (req, res) => {
+    const { productId, productName, description } = req.body;
+    try {
+        const products = loadData(productsFilePath, []);
+        const productIndex = products.findIndex(p => p.id.toUpperCase() === productId.toUpperCase());
+        if (productIndex > -1) {
+            products[productIndex].name = productName;
+            products[productIndex].description = description;
+            saveData(productsFilePath, products);
+            res.redirect('/admin');
+        } else {
+            res.status(404).send('Produk tidak ditemukan.');
+        }
+    } catch (error) {
+        console.error('[DASHBOARD ERROR] Gagal menyimpan produk:', error);
+        res.status(500).send('Gagal menyimpan data.');
+    }
+});
+
+// --- Rute untuk menghapus produk ---
+app.post('/admin/delete-product', checkAuth, (req, res) => {
+    const { productId } = req.body;
+    try {
+        let products = loadData(productsFilePath, []);
+        products = products.filter(p => p.id.toUpperCase() !== productId.toUpperCase());
+        saveData(productsFilePath, products);
+        res.redirect('/admin');
+    } catch (error) {
+        console.error('[DASHBOARD ERROR] Gagal menghapus produk:', error);
+        res.status(500).send('Gagal menghapus data.');
+    }
+});
+
+// --- Rute untuk menghapus varian ---
+app.post('/admin/delete-variation', checkAuth, (req, res) => {
+    const { fullVariationCode } = req.body; // Contoh: "CANVA-EDU"
+    try {
+        const parts = fullVariationCode.toUpperCase().split('-');
+        const variationCode = parts.pop();
+        const productId = parts.join('-');
+        
+        const products = loadData(productsFilePath, []);
+        const productIndex = products.findIndex(p => p.id.toUpperCase() === productId);
+
+        if (productIndex > -1) {
+            products[productIndex].variations = products[productIndex].variations.filter(v => v.code.toUpperCase() !== variationCode);
+            saveData(productsFilePath, products);
+        }
+        res.redirect('/admin');
+    } catch (error) {
+        console.error('[DASHBOARD ERROR] Gagal menghapus varian:', error);
+        res.status(500).send('Gagal menghapus data.');
+    }
+});
+
+// --- Rute untuk mengatur total terjual ---
+app.post('/admin/set-total-sold', checkAuth, (req, res) => {
+    const { productId, totalSold } = req.body;
+    try {
+        const products = loadData(productsFilePath, []);
+        const productIndex = products.findIndex(p => p.id.toUpperCase() === productId.toUpperCase());
+        if (productIndex > -1) {
+            products[productIndex].totalSold = parseInt(totalSold) || 0;
+            saveData(productsFilePath, products);
+        }
+        res.redirect('/admin');
+    } catch (error) {
+        console.error('[DASHBOARD ERROR] Gagal mengatur total terjual:', error);
+        res.status(500).send('Gagal menyimpan data.');
+    }
+});
+
+
+// Endpoint untuk cek status server
+
+// GANTI SELURUH FUNGSI INI
 app.post('/webhook', async (req, res) => {
     try {
         const notification = req.body;
         console.log('[WEBHOOK] Notifikasi diterima:', JSON.stringify(notification, null, 2));
+        
+        // --- PENJAGA KONEKSI ---
+        if (!sock) {
+            console.error('[WEBHOOK ERROR] Koneksi WhatsApp (sock) tidak tersedia! Pesan tidak dapat dikirim.');
+            // Kirim respons OK ke Midtrans agar tidak coba kirim ulang, tapi catat errornya.
+            return res.status(200).send('OK - sock not ready');
+        }
         
         const orderId = notification.order_id;
         const transactionStatus = notification.transaction_status;
@@ -1236,6 +1361,7 @@ Berikut adalah detail produk yang Kamu beli, harap segera amankan data yang tela
                         }
                     }
 
+                    // Update data user, produk, transaksi, dan stok
                     const users = loadData(usersFilePath);
                     if (users[orderData.userId]) {
                         if (!users[orderData.userId].transactions) users[orderData.userId].transactions = [];
@@ -1271,8 +1397,12 @@ Berikut adalah detail produk yang Kamu beli, harap segera amankan data yang tela
 
 // --- JALANKAN SEMUANYA ---
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    ensureDbFolderExists(); // Pastikan folder database ada sebelum bot jalan
-    console.log(`[SERVER] Server berjalan di port ${PORT}`);
-    connectToWhatsApp(); // Jalankan bot setelah server web siap
-});
+
+// Pertama, jalankan fungsi koneksi WhatsApp
+connectToWhatsApp().then(() => {
+    // SETELAH koneksi WhatsApp siap, BARU jalankan server web
+    app.listen(PORT, () => {
+        ensureDbFolderExists(); // Pastikan folder database ada sebelum bot jalan
+        console.log(`[SERVER] Server berjalan di port ${PORT} dan siap menerima webhook.`);
+    });
+}).catch(err => console.error("Gagal memulai bot:", err));
