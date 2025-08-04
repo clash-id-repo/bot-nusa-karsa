@@ -1341,12 +1341,13 @@ app.post('/webhook', async (req, res) => {
         }
         
         if (transactionStatus === 'settlement' || transactionStatus === 'capture') {
-            const transactions = loadData(transactionsFilePath);
+            // Di dalam app.post('/webhook', ...
+            const transactions = loadData(transactionsFilePath, {}); // <-- Tambahkan parameter kedua {}
             const orderData = transactions[orderId];
             
             if (!orderData) {
                 console.warn(`[WEBHOOK PERINGATAN] Notifikasi diterima untuk Order ID (${orderId}) yang tidak ditemukan.`);
-                await sock.sendMessage(ownerJid, { text: `⚠️ *Peringatan Keamanan*\n\nBot menerima notifikasi pembayaran untuk Order ID \`${orderId}\`, tapi data pesanan tidak ditemukan.` });
+                await sock.sendMessage(ownerJid, { text: `⚠️ *Peringatan Keamanan*\n\nBot menerima notifikasi pembayaran untuk Order ID ${orderId}, tapi data pesanan tidak ditemukan.` });
                 return res.status(200).send('OK - order not found');
             }
 
@@ -1356,6 +1357,7 @@ app.post('/webhook', async (req, res) => {
             }
             
             const stock = loadData(stockFilePath);
+            
             let deliveredItems = [];
             const stockKey = orderData.variationCode.toUpperCase();
 
