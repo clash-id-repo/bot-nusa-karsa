@@ -1084,6 +1084,7 @@ if(productInfo && productInfo.variations){
 const app = express();
 const cookieParser = require('cookie-parser');
 const session = require('express-session');
+const path = require('path'); // Diperlukan untuk rute QR
 
 // --- Setup Middleware untuk Express ---
 app.set('view engine', 'ejs'); // Set EJS sebagai view engine
@@ -1097,7 +1098,46 @@ app.use(session({
     cookie: { maxAge: 1000 * 60 * 60 * 24 } // Cookie berlaku selama 1 hari
 }));
 
-// --- Middleware untuk Cek Login ---
+
+// --- RUTE PUBLIK (STATUS & QR) ---
+
+// Rute utama untuk menampilkan status bot
+app.get('/', (req, res) => {
+    const uptime = formatUptime(botStartTime); // Memanggil fungsi uptime
+    res.status(200).send(`
+        <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; color: #333; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+            .container { text-align: center; background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+            h1 { color: #2ecc71; }
+            p { font-size: 1.1em; }
+            .footer { margin-top: 20px; font-size: 0.8em; color: #777; }
+        </style>
+        <div class="container">
+            <h1>🚀 Bot Nusa Karsa is Running!</h1>
+            <p>Server is active and ready to process requests.</p>
+            <div class="footer">
+                Version: ${BOT_VERSION}<br>
+                Uptime: ${uptime}<br>
+                Server Time: ${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}
+            </div>
+        </div>
+    `);
+});
+
+// Rute untuk menampilkan QR Code
+app.get('/qr', (req, res) => {
+    const qrImagePath = path.join(__dirname, 'qr.png');
+    if (fs.existsSync(qrImagePath)) {
+        res.sendFile(qrImagePath);
+    } else {
+        res.status(404).send('<h1>QR Code tidak ditemukan.</h1><p>Silakan restart bot atau tunggu QR Code baru dibuat.</p>');
+    }
+});
+
+
+// --- SISTEM AUTENTIKASI & DASHBOARD ADMIN ---
+
+// Middleware untuk Cek Login
 const checkAuth = (req, res, next) => {
     if (req.session.isLoggedIn) {
         next();
@@ -1106,13 +1146,13 @@ const checkAuth = (req, res, next) => {
     }
 };
 
-// --- Rute Halaman Login ---
+// Rute Halaman Login
 app.get('/login', (req, res) => {
     res.render('login', { error: null });
 });
 
 app.post('/login', (req, res) => {
-    const adminPassword = process.env.ADMIN_PASSWORD || "admin123"; // Ganti password default di file .env kamu
+    const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
     if (req.body.password === adminPassword) {
         req.session.isLoggedIn = true;
         res.redirect('/admin');
@@ -1121,7 +1161,7 @@ app.post('/login', (req, res) => {
     }
 });
 
-// --- Rute Logout ---
+// Rute Logout
 app.get('/logout', (req, res) => {
     req.session.destroy(err => {
         if (err) {
@@ -1132,33 +1172,28 @@ app.get('/logout', (req, res) => {
     });
 });
 
-// --- Rute Halaman Dashboard Utama ---
+// Rute Halaman Dashboard Utama
 app.get('/admin', checkAuth, (req, res) => {
     const products = loadData(productsFilePath, []);
     const stock = loadData(stockFilePath, {});
     res.render('dashboard', { products, stock });
 });
 
-// --- Rute untuk memproses penambahan stok ---
+// Rute untuk memproses penambahan stok
 app.post('/admin/add-stock', checkAuth, (req, res) => {
     const { variationCode, stockItems } = req.body;
     if (!variationCode || !stockItems) {
         return res.status(400).send('Data tidak lengkap.');
     }
-
     try {
         const stock = loadData(stockFilePath, {});
         const upperVariationCode = variationCode.toUpperCase();
-        
-        // Memecah item stok berdasarkan baris baru dan memfilter baris kosong
         const newStockItems = stockItems.split(/\r?\n/).filter(line => line.trim() !== '');
-
         if (!stock[upperVariationCode]) {
             stock[upperVariationCode] = [];
         }
         stock[upperVariationCode].push(...newStockItems);
         saveData(stockFilePath, stock);
-        
         console.log(`[DASHBOARD] Stok untuk ${upperVariationCode} berhasil ditambahkan sebanyak ${newStockItems.length} item.`);
         res.redirect('/admin');
     } catch (error) {
@@ -1167,30 +1202,25 @@ app.post('/admin/add-stock', checkAuth, (req, res) => {
     }
 });
 
-// --- Rute untuk Halaman Tambah Produk ---
+// Rute untuk Halaman Tambah Produk
 app.get('/admin/add-product', checkAuth, (req, res) => {
     res.render('add-product');
 });
 
-// --- Rute untuk memproses penambahan produk/varian ---
+// Rute untuk memproses penambahan produk/varian
 app.post('/admin/add-product', checkAuth, (req, res) => {
     const { productId, productName, description, variationCode, variationName, price } = req.body;
-    
     try {
         const products = loadData(productsFilePath, []);
         const productIndex = products.findIndex(p => p.id.toUpperCase() === productId.toUpperCase());
-
         const newVariation = {
             code: variationCode.toUpperCase(),
             name: variationName,
             price: parseInt(price)
         };
-
         if (productIndex > -1) {
-            // Produk sudah ada, tambahkan varian baru
             products[productIndex].variations.push(newVariation);
         } else {
-            // Produk baru
             if (!productName) {
                 return res.status(400).send('Nama produk wajib diisi untuk produk baru.');
             }
@@ -1203,7 +1233,6 @@ app.post('/admin/add-product', checkAuth, (req, res) => {
             };
             products.push(newProduct);
         }
-        
         saveData(productsFilePath, products);
         res.redirect('/admin');
     } catch (error) {
@@ -1212,7 +1241,7 @@ app.post('/admin/add-product', checkAuth, (req, res) => {
     }
 });
 
-// --- Rute untuk Halaman Edit Produk ---
+// Rute untuk Halaman Edit Produk
 app.get('/admin/edit-product/:productId', checkAuth, (req, res) => {
     const { productId } = req.params;
     const products = loadData(productsFilePath, []);
@@ -1224,7 +1253,7 @@ app.get('/admin/edit-product/:productId', checkAuth, (req, res) => {
     }
 });
 
-// --- Rute untuk memproses penyimpanan edit produk ---
+// Rute untuk memproses penyimpanan edit produk
 app.post('/admin/save-product', checkAuth, (req, res) => {
     const { productId, productName, description } = req.body;
     try {
@@ -1244,7 +1273,7 @@ app.post('/admin/save-product', checkAuth, (req, res) => {
     }
 });
 
-// --- Rute untuk menghapus produk ---
+// Rute untuk menghapus produk
 app.post('/admin/delete-product', checkAuth, (req, res) => {
     const { productId } = req.body;
     try {
@@ -1258,17 +1287,15 @@ app.post('/admin/delete-product', checkAuth, (req, res) => {
     }
 });
 
-// --- Rute untuk menghapus varian ---
+// Rute untuk menghapus varian
 app.post('/admin/delete-variation', checkAuth, (req, res) => {
-    const { fullVariationCode } = req.body; // Contoh: "CANVA-EDU"
+    const { fullVariationCode } = req.body;
     try {
         const parts = fullVariationCode.toUpperCase().split('-');
         const variationCode = parts.pop();
         const productId = parts.join('-');
-        
         const products = loadData(productsFilePath, []);
         const productIndex = products.findIndex(p => p.id.toUpperCase() === productId);
-
         if (productIndex > -1) {
             products[productIndex].variations = products[productIndex].variations.filter(v => v.code.toUpperCase() !== variationCode);
             saveData(productsFilePath, products);
@@ -1280,7 +1307,7 @@ app.post('/admin/delete-variation', checkAuth, (req, res) => {
     }
 });
 
-// --- Rute untuk mengatur total terjual ---
+// Rute untuk mengatur total terjual
 app.post('/admin/set-total-sold', checkAuth, (req, res) => {
     const { productId, totalSold } = req.body;
     try {
@@ -1298,20 +1325,18 @@ app.post('/admin/set-total-sold', checkAuth, (req, res) => {
 });
 
 
-// Endpoint untuk cek status server
-// Endpoint untuk menerima notifikasi Webhook dari Midtrans (VERSI SANGAT AMAN)
+// --- WEBHOOK UNTUK NOTIFIKASI PEMBAYARAN ---
+
 app.post('/webhook', async (req, res) => {
     const ownerJid = `${OWNER_NUMBER}@s.whatsapp.net`;
     try {
         const notification = req.body;
         const orderId = notification.order_id;
         const transactionStatus = notification.transaction_status;
-
         console.log(`[WEBHOOK] Notifikasi diterima untuk Order ID: ${orderId}, Status: ${transactionStatus}`);
         
-        // FITUR KEAMANAN 1: Pemeriksaan Koneksi Awal
         if (!sock) {
-            console.error(`[WEBHOOK FATAL] Koneksi WhatsApp (sock) tidak tersedia untuk Order ID: ${orderId}! Pesan tidak dapat dikirim.`);
+            console.error(`[WEBHOOK FATAL] Koneksi WhatsApp (sock) tidak tersedia untuk Order ID: ${orderId}!`);
             return res.status(200).send('OK - sock not ready');
         }
         
@@ -1319,16 +1344,14 @@ app.post('/webhook', async (req, res) => {
             const transactions = loadData(transactionsFilePath);
             const orderData = transactions[orderId];
             
-            // FITUR KEAMANAN 2: Pemeriksaan Order ID
             if (!orderData) {
-                console.warn(`[WEBHOOK PERINGATAN] Notifikasi diterima untuk Order ID (${orderId}) yang tidak ditemukan di database.`);
-                await sock.sendMessage(ownerJid, { text: `⚠️ *Peringatan Keamanan*\n\nBot menerima notifikasi pembayaran untuk Order ID \`${orderId}\`, tapi data pesanan tidak ditemukan. Mungkin ini adalah tes lama atau transaksi dari sistem lain.` });
+                console.warn(`[WEBHOOK PERINGATAN] Notifikasi diterima untuk Order ID (${orderId}) yang tidak ditemukan.`);
+                await sock.sendMessage(ownerJid, { text: `⚠️ *Peringatan Keamanan*\n\nBot menerima notifikasi pembayaran untuk Order ID \`${orderId}\`, tapi data pesanan tidak ditemukan.` });
                 return res.status(200).send('OK - order not found');
             }
 
-            // FITUR KEAMANAN 3: Pemeriksaan Status Ganda
             if (orderData.status !== 'PENDING') {
-                console.log(`[WEBHOOK INFO] Notifikasi untuk Order ID (${orderId}) diterima, tapi statusnya sudah '${orderData.status}'. Diabaikan untuk mencegah pengiriman ganda.`);
+                console.log(`[WEBHOOK INFO] Notifikasi untuk Order ID (${orderId}) diterima, tapi statusnya sudah '${orderData.status}'. Diabaikan.`);
                 return res.status(200).send('OK - already processed');
             }
             
@@ -1336,29 +1359,22 @@ app.post('/webhook', async (req, res) => {
             let deliveredItems = [];
             const stockKey = orderData.variationCode.toUpperCase();
 
-            // Cek ketersediaan stok sebelum mengambil
             if (stock[stockKey] && stock[stockKey].length >= orderData.quantity) {
-                // Ambil stok sejumlah yang dipesan
                 for (let i = 0; i < orderData.quantity; i++) {
                     deliveredItems.push(stock[stockKey].shift());
                 }
             }
             
             if (deliveredItems.length === orderData.quantity) {
-                // Stok berhasil diambil, update data SEBELUM mengirim pesan
                 orderData.status = "COMPLETED";
                 saveData(stockFilePath, stock);
                 saveData(transactionsFilePath, transactions);
                 console.log(`[DATA UPDATE] Order ID ${orderId} status diubah ke COMPLETED dan stok dikurangi.`);
-
-                // FITUR KEAMANAN 4: Penanganan Error Pengiriman Pesan
                 try {
                     const transactionDate = new Date(orderData.createdAt).toLocaleString('id-ID', {
-                        timeZone: 'Asia/Jakarta',
-                        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+                        timeZone: 'Asia/Jakarta', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
                         hour: '2-digit', minute: '2-digit'
                     });
-
                     const productMessage = `
 *✅ PEMBAYARAN BERHASIL*
 
@@ -1371,36 +1387,32 @@ Berikut adalah detail produk yang Kamu beli, harap segera amankan data yang tela
 > *Tanggal Transaksi:* ${transactionDate} WIB
 > *Detail Produk:* ${orderData.productName}
 > *Jumlah:* ${orderData.quantity}
-> *Data:* \`\`\`${deliveredItems.join('\n')}\`\`\`
-`;
+> *Data:* \`\`\`${deliveredItems.join('\n')}\`\`\``;
                     await sendFormattedMessage(orderData.userId, productMessage);
                     console.log(`[PRODUK TERKIRIM] ${orderData.quantity} item ${orderData.variationCode} ke ${orderData.userId}`);
-
                     if (orderData.messageKey) {
                         await sock.sendMessage(orderData.userId, { delete: orderData.messageKey });
                     }
-
                 } catch (deliveryError) {
                     console.error(`[WEBHOOK FATAL] GAGAL MENGIRIM PRODUK ke ${orderData.userId} untuk Order ID ${orderId}!`, deliveryError);
-                    // Kirim notifikasi darurat ke Owner
-                    await sock.sendMessage(ownerJid, { text: `🚨 *KESALAHAN KRITIS* 🚨\n\nBot GAGAL mengirim produk ke pelanggan untuk Order ID \`${orderId}\` meskipun pembayaran sudah LUNAS dan data sudah diupdate.\n\n*MOHON SEGERA KIRIM PRODUK SECARA MANUAL KE NOMOR:* wa.me/${orderData.userId.split('@')[0]}` });
+                    await sock.sendMessage(ownerJid, { text: `🚨 *KESALAHAN KRITIS* 🚨\n\nBot GAGAL mengirim produk ke pelanggan untuk Order ID \`${orderId}\` meskipun pembayaran sudah LUNAS.\n\n*MOHON SEGERA KIRIM PRODUK MANUAL KE:* wa.me/${orderData.userId.split('@')[0]}` });
                 }
-
             } else {
-                // FITUR KEAMANAN 5: Notifikasi Stok Habis yang Jelas
                 console.error(`[STOK HABIS] Gagal kirim produk untuk Order ID ${orderId}. Stok tidak mencukupi.`);
-                await sendFormattedMessage(orderData.userId, `Mohon maaf, terjadi masalah: stok produk habis tepat saat pembayaranmu diproses. Silakan hubungi Owner dengan menyertakan ID Pesanan ini untuk penanganan lebih lanjut: \`${orderId}\``);
+                await sendFormattedMessage(orderData.userId, `Mohon maaf, stok produk habis saat pembayaranmu diproses. Hubungi Owner dengan ID Pesanan ini untuk penanganan lebih lanjut: \`${orderId}\``);
                 await sock.sendMessage(ownerJid, { text: `⚠️ *PERHATIAN: STOK HABIS* ⚠️\n\nPembayaran LUNAS diterima untuk Order ID \`${orderId}\`, tapi stok produk habis. Segera hubungi pelanggan di wa.me/${orderData.userId.split('@')[0]}` });
             }
         }
         res.status(200).send('OK');
     } catch (error) {
         console.error("[WEBHOOK KESELURUHAN ERROR]", error);
-        // Kirim notifikasi jika ada error tak terduga
-        await sock.sendMessage(ownerJid, { text: `🚨 *ERROR TIDAK DIKENALI DI WEBHOOK* 🚨\n\nTerjadi error fatal saat memproses notifikasi. Cek log server segera!\n\nError: ${error.message}` });
+        if(sock) {
+             await sock.sendMessage(ownerJid, { text: `🚨 *ERROR TIDAK DIKENALI DI WEBHOOK* 🚨\n\nError: ${error.message}` });
+        }
         res.status(500).send('Internal Server Error');
     }
 });
+
 
 // --- JALANKAN SEMUANYA ---
 const PORT = process.env.PORT || 3000;
