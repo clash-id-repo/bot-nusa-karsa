@@ -840,7 +840,7 @@ if(variation) totalRevenue += variation.price * t.quantity;
                     }
                     case '/hapusproduk': {
                         if (senderId !== ownerJid) return;
-                        const [productId]_ = args;
+                        const [productId] = args;
                         if (!productId) {
                             await sendFormattedMessage(from, "Format salah. Gunakan: `/hapusproduk <ID_PRODUK>`");
                             reactionEmoji = '❓';
