@@ -9,13 +9,16 @@
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.18",
     "axios": "^1.11.0",
+    "cookie-parser": "^1.4.7",
     "dotenv": "^17.2.1",
+    "ejs": "^3.1.10",
     "express": "^5.1.0",
+    "express-session": "^1.18.2",
     "luxon": "^3.7.1",
     "p-timeout": "^6.1.4",
     "pino": "^9.7.0",
     "qrcode": "^1.5.4"
   },
   "author": "NUSA KARSA by ARH",
-  "license": "ISC"
+  "license": "COPYRIGHT © 2025 NUSA KARSA"
 }
