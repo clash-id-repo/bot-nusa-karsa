@@ -7,6 +7,7 @@ const qrcode = require('qrcode');
 const fs = require('fs');
 const axios = require('axios');
 const express = require('express');
+const { Redis } = require("@upstash/redis"); // <-- Perubahan: Import Redis
 const { DateTime } = require('luxon');
 require('dotenv').config();
 
@@ -17,7 +18,7 @@ console.log('[ENV] OWNER_NUMBER dimuat:', process.env.OWNER_NUMBER);
 const OWNER_NUMBER = process.env.OWNER_NUMBER || 'gantinomormu';
 const MIDTRANS_SERVER_KEY = process.env.MIDTRANS_SERVER_KEY || 'ganti_kunci_server_midtrans';
 const FERDEV_API_KEY = "key-arh";
-const BOT_VERSION = "3.2 - Beta";
+const BOT_VERSION = "3.2 - Redis"; // <-- Perubahan: Versi bot
 
 let botJid = '';
 let sock = null; 
@@ -25,6 +26,13 @@ let userState = {};
 let greetedUsers = new Set();
 let userActivity = {};
 const botStartTime = DateTime.now().setZone('Asia/Jakarta');
+
+// KONEKSI KE REDIS 
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+});
+// AKHIR KONEKSI
 
 // Konfigurasi Anti-Spam & Anti-Telepon
 const SPAM_MESSAGE_LIMIT = 7; 
@@ -36,7 +44,7 @@ let callHistory = new Map();
 const dataDir = './data';
 const productsFilePath = `${dataDir}/products.json`;
 const stockFilePath = `${dataDir}/stock.json`;
-const transactionsFilePath = `${dataDir}/transactions.json`;
+// const transactionsFilePath = `${dataDir}/transactions.json`; // <-- Dihapus, tidak dipakai lagi
 const usersFilePath = `${dataDir}/users.json`;
 const blockedFilePath = `${dataDir}/blocked.json`;
 
@@ -91,7 +99,7 @@ NUSA KARSA adalah platform toko digital yang menyediakan berbagai produk digital
 const OWNER_TEXT = `*👨‍💻 INFORMASI OWNER*\n\nJika Kamu menemukan kendala, bug, atau memiliki pertanyaan bisnis, silakan hubungi kami.\n\n> *📞 Nomor WhatsApp:* wa.me/${OWNER_NUMBER}\n> *Catatan:* Mohon untuk chat saja dan jelaskan keperluan Kamu dengan jelas.`;
 
 // ======================================================
-// FUNGSI PEMUATAN & PENYIMPANAN DATA
+// FUNGSI PEMUATAN & PENYIMPANAN DATA (untuk file selain transaksi)
 // ======================================================
 function ensureDbFolderExists() {
     if (!fs.existsSync(dataDir)) {
@@ -145,23 +153,19 @@ function formatUptime(startTime) {
     return `${Math.floor(diff.days)} Hari ${Math.floor(diff.hours)} Jam ${Math.floor(diff.minutes)} Menit ${Math.floor(diff.seconds)} Detik`;
 }
 
-// --- PERBAIKAN 1 DIMULAI DI SINI ---
-// Mengganti header menjadi lebih profesional dan stabil
 function createHeaderQuote(from) {
     return {
         key: {
             remoteJid: from,
-            fromMe: true, // Mengindikasikan pesan ini dari bot itu sendiri
+            fromMe: true,
             id: 'NUSA_KARSA_HEADER',
-            participant: botJid // JID dari bot
+            participant: botJid
         },
         message: {
-            // Teks yang statis dan profesional untuk header
             conversation: `*NUSA KARSA*\nSERVER TIME : ${getDynamicGreeting().serverTime}`
         }
     };
 }
-// --- AKHIR PERBAIKAN 1 ---
 
 async function sendFormattedMessage(jid, text, extraOptions = {}) {
     const footer = "\n\n> © NUSA KARSA";
@@ -286,8 +290,6 @@ async function connectToWhatsApp() {
             console.log('✨ Bot Nusa Karsa berhasil tersambung!');
         }
     });
-
-    // --- SEMUA EVENT HANDLER LAINNYA HARUS DI DALAM FUNGSI INI ---
 
     sock.ev.on('call', async (calls) => {
         for (const call of calls) {
@@ -452,44 +454,28 @@ async function connectToWhatsApp() {
                             return;
                         }
 
-                        const qrCodeUrl = midtransResponse.data.actions.find(a => a.name === 'generate-qr-code').url;
-                        const transactions = loadData(transactionsFilePath, {});
-                        
-                        // --- PERBAIKAN BUG `variationCode` DIMULAI DI SINI ---
-                        transactions[orderId] = { 
-                            userId: senderId, 
-                            productId: product.id, 
-                            variationCode: variationCode, // Menggunakan `variationCode` lengkap (misal: "CANVA-EDU")
-                            productName: `${product.name} - ${variation.name}`, 
-                            quantity: quantity, 
-                            status: "PENDING", 
-                            createdAt: new Date().toISOString() 
+                        // +++ KODE BARU MENGGUNAKAN REDIS (SEBAGAI PENGGANTI) +++
+                        const transactionData = {
+                            userId: senderId,
+                            productId: product.id,
+                            variationCode: variationCode,
+                            productName: `${product.name} - ${variation.name}`,
+                            quantity: quantity,
+                            status: "PENDING",
+                            createdAt: new Date().toISOString()
                         };
-                        // --- AKHIR PERBAIKAN BUG ---
-                        
-                        saveData(transactionsFilePath, transactions);
 
-                        // --- PERBAIKAN 2A (SIMPAN KUNCI) DIMULAI DI SINI ---
+                        await redis.set(orderId, JSON.stringify(transactionData), { ex: 360 });
+                        console.log(`[REDIS SAVE] Transaksi awal untuk ${orderId} berhasil disimpan.`);
+
+                        const qrCodeUrl = midtransResponse.data.actions.find(a => a.name === 'generate-qr-code').url;
                         const caption = `*🧾 TAGIHAN PEMBAYARAN*\n\nSilakan scan QRIS di atas untuk membayar pesanan\nID: \`${orderId}\`. Produk akan otomatis dikirim setelah pembayaran berhasil.\n\n*PERHATIAN:* Link pembayaran ini akan kedaluwarsa dalam *5 menit*.`;
                         const sentQRMessage = await sock.sendMessage(from, { image: { url: qrCodeUrl }, caption: caption });
                         
-                        // Simpan kunci pesan ke dalam data transaksi
-                        transactions[orderId].messageKey = sentQRMessage.key;
-                        saveData(transactionsFilePath, transactions); // Simpan lagi setelah menambahkan kunci
-                        // --- AKHIR PERBAIKAN 2A ---
-                        
-                        setTimeout(async () => {
-                            const currentTransactions = loadData(transactionsFilePath, {});
-                            if (currentTransactions[orderId] && currentTransactions[orderId].status === 'PENDING') {
-                                // Hanya hapus pesan jika masih pending dan belum ada kunci (artinya belum dihapus oleh webhook)
-                                if (currentTransactions[orderId].messageKey) {
-                                    await sock.sendMessage(from, { delete: currentTransactions[orderId].messageKey });
-                                }
-                                await sendFormattedMessage(from, `⌛ *WAKTU PEMBAYARAN HABIS*\n\nPembayaran untuk pesanan \`${orderId}\` telah kedaluwarsa dan dibatalkan.`);
-                                delete currentTransactions[orderId];
-                                saveData(transactionsFilePath, currentTransactions);
-                            }
-                        }, 305000); // 5 menit 5 detik
+                        transactionData.messageKey = sentQRMessage.key;
+                        await redis.set(orderId, JSON.stringify(transactionData), { ex: 360 });
+                        console.log(`[REDIS UPDATE] MessageKey untuk ${orderId} berhasil ditambahkan.`);
+
                         reactionEmoji = '⏳';
                         
                     } else if (lowerBody === 'batal') {
@@ -624,102 +610,40 @@ async function connectToWhatsApp() {
                         break;
                     }
                     case '/riwayat': {
-                        const transactions = loadData(transactionsFilePath, {});
+                        // Perlu penyesuaian untuk membaca riwayat dari database permanen,
+                        // untuk saat ini, riwayat dari file users.json masih bisa digunakan
+                        // jika logic webhook diubah untuk menyimpan ke sana juga.
                         const usersData = loadData(usersFilePath, {});
                         const userTransactions = usersData[senderId]?.transactions || [];
                         let historyMessage = `*📜 RIWAYAT TRANSAKSI KAMU*\n\n`;
                         if (userTransactions.length === 0) {
                             historyMessage += "Kamu belum memiliki riwayat transaksi yang berhasil.";
                         } else {
-                            historyMessage += `Berikut adalah transaksi terakhir Kamu:\n`;
-                            userTransactions.forEach(orderId => {
-                                const t = transactions[orderId];
-                                if (t) {
-                                    historyMessage += `\n--------------------\n`;
-                                    historyMessage += `> *Produk:* ${t.productName}\n`;
-                                    historyMessage += `> *Jumlah:* ${t.quantity}\n`;
-                                    historyMessage += `> *Tanggal:* ${new Date(t.createdAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}\n`;
-                                }
-                            });
+                            historyMessage += "Fitur riwayat sedang dalam pengembangan dengan sistem database baru.";
+                            // Logika untuk mengambil dari database permanen akan ditempatkan di sini
                         }
                         await sendFormattedMessage(from, historyMessage);
                         reactionEmoji = '📜';
                         break;
                     }
                     case '/produkpopuler': {
-                        const transactions = loadData(transactionsFilePath, {});
-                        const products = loadData(productsFilePath, []);
-                        const salesCount = {};
-                        Object.values(transactions).forEach(t => {
-                            if (t.status === 'COMPLETED') {
-                                const mainProductId = t.productId;
-                                if (!salesCount[mainProductId]) salesCount[mainProductId] = 0;
-                                salesCount[mainProductId] += t.quantity;
-                            }
-                        });
-                        const sortedProducts = Object.entries(salesCount).sort(([, a], [, b]) => b - a).slice(0, 5);
-                        let popularMessage = `*🔥 PRODUK TERLARIS - NUSA KARSA*\n\nBerikut adalah 5 produk paling populer di toko kami:\n`;
-                        if (sortedProducts.length === 0) {
-                            popularMessage += "\nBelum ada produk yang terjual.";
-                        } else {
-                            sortedProducts.forEach(([productId, sold], index) => {
-                                const productInfo = products.find(p => p.id === productId);
-                                if (productInfo) {
-                                    popularMessage += `\n*${index + 1}. ${productInfo.name}*`;
-                                    popularMessage += `\n   - _Terjual ${sold} pcs_`;
-                                }
-                            });
-                        }
-                        await sendFormattedMessage(from, popularMessage);
+                        // Fitur ini memerlukan pembacaan semua transaksi, perlu adaptasi ke database permanen
+                        await sendFormattedMessage(from, "Fitur produk populer sedang disesuaikan dengan sistem database baru.");
                         reactionEmoji = '🔥';
                         break;
                     }
                     case '/info': {
+                        // Fitur ini memerlukan pembacaan semua transaksi, perlu adaptasi ke database permanen
                         const users = loadData(usersFilePath, {});
-                        const transactions = loadData(transactionsFilePath, {});
                         const userId = senderId.split('@')[0];
-                        const userTransactions = users[senderId]?.transactions || [];
-                        let userTotalSpent = 0;
-                        userTransactions.forEach(orderId => {
-                            const t = transactions[orderId];
-                            if (t && t.status === 'COMPLETED') {
-                                const products = loadData(productsFilePath, []);
-                                const product = products.find(p => p.id === t.productId);
-                                if (product && product.variations) {
-                                    // ... di dalam case '/info', bagian userTransactions.forEach ...
-// PERBAIKAN: Cocokkan dengan KODE LENGKAP
-const variation = product.variations.find(v => `${product.id}-${v.code}`.toUpperCase() === t.variationCode.toUpperCase());
-if(variation) userTotalSpent += variation.price * t.quantity;
-                                }
-                            }
-                        });
-                        let totalSold = 0;
-                        let totalRevenue = 0;
-                        Object.values(transactions).forEach(t => {
-                            if(t.status === 'COMPLETED') {
-                                totalSold += t.quantity;
-                                const products = loadData(productsFilePath, []);
-                                const product = products.find(p => p.id === t.productId);
-                                if (product && product.variations) {
-                                    // ... di dalam case '/info', bagian Object.values(transactions).forEach ...
-// PERBAIKAN: Cocokkan dengan KODE LENGKAP
-const variation = product.variations.find(v => `${product.id}-${v.code}`.toUpperCase() === t.variationCode.toUpperCase());
-if(variation) totalRevenue += variation.price * t.quantity;
-                                }
-                            }
-                        });
-                        const totalUsers = Object.keys(users).length;
                         const uptime = formatUptime(botStartTime);
                         
                         let infoMessage = `Halo ${userName} 👋\n\n`;
                         infoMessage += `*User Info :*\n`;
                         infoMessage += `└ ID : ${userId}\n`;
-                        infoMessage += `└ Username : ${userName}\n`;
-                        infoMessage += `└ Total Belanja : Rp. ${userTotalSpent.toLocaleString('id-ID')}\n\n`;
+                        infoMessage += `└ Username : ${userName}\n\n`;
                         infoMessage += `*BOT Stats :*\n`;
-                        infoMessage += `└ Produk Terjual : ${totalSold.toLocaleString('id-ID')} pcs\n`;
-                        infoMessage += `└ Total Pendapatan : Rp. ${totalRevenue.toLocaleString('id-ID')}\n`;
-                        infoMessage += `└ Total User : ${totalUsers}\n`;
+                        infoMessage += `└ Total User : ${Object.keys(users).length}\n`;
                         infoMessage += `└ Uptime : ${uptime}\n`;
                         infoMessage += `└ Ver : ${BOT_VERSION}\n\n`;
                         infoMessage += `*Shortcuts menu :*\n`;
@@ -750,6 +674,7 @@ if(variation) totalRevenue += variation.price * t.quantity;
                         reactionEmoji = '✅';
                         break;
                     }
+                    // ... (semua case owner tetap sama) ...
                     case '/tambahproduk': {
                         if (senderId !== ownerJid) return;
                         const argsText = args.join(' ');
@@ -932,41 +857,7 @@ if(variation) totalRevenue += variation.price * t.quantity;
                     }
                     case '/statistik': {
                         if (senderId !== ownerJid) return;
-                        const transactions = loadData(transactionsFilePath, {});
-                        const products = loadData(productsFilePath, []);
-                        const stats = {};
-                        let totalRevenue = 0;
-                        Object.values(transactions).forEach(t => {
-                            if (t.status === 'COMPLETED') {
-                                if (!stats[t.productId]) {
-                                    const productInfo = products.find(p => p.id === t.productId);
-                                    stats[t.productId] = { name: productInfo ? productInfo.name : t.productId, sold: 0, revenue: 0 };
-                                }
-                                // ... di dalam case '/statistik' ...
-let price = 0;
-const productInfo = products.find(p => p.id === t.productId);
-if(productInfo && productInfo.variations){
-    // PERBAIKAN: Cocokkan dengan KODE LENGKAP (`CANVA-EDU`), bukan hanya `EDU`
-    const variationInfo = productInfo.variations.find(v => `${productInfo.id}-${v.code}`.toUpperCase() === t.variationCode.toUpperCase());
-    if(variationInfo) price = variationInfo.price;
-}
-                                stats[t.productId].sold += t.quantity;
-                                stats[t.productId].revenue += t.quantity * price;
-                                totalRevenue += t.quantity * price;
-                            }
-                        });
-                        const sortedStats = Object.values(stats).sort((a, b) => b.sold - a.sold);
-                        let statsMessage = `*📈 STATISTIK PENJUALAN - NUSA KARSA*\n\n`;
-                        if (sortedStats.length === 0) {
-                            statsMessage += "Belum ada produk yang terjual.";
-                        } else {
-                            statsMessage += `*Produk Terlaris (Berdasarkan Kategori Utama):*\n`;
-                            sortedStats.forEach((stat, index) => {
-                                statsMessage += `${index + 1}. *${stat.name}*\n   - Terjual: ${stat.sold} unit\n   - Pendapatan: Rp ${stat.revenue.toLocaleString('id-ID')}\n`;
-                            });
-                            statsMessage += `\n--------------------\n*Total Pendapatan Keseluruhan:* Rp ${totalRevenue.toLocaleString('id-ID')}`;
-                        }
-                        await sendFormattedMessage(from, statsMessage);
+                        await sendFormattedMessage(from, "Fitur statistik sedang disesuaikan dengan sistem database baru.");
                         reactionEmoji = '📈';
                         break;
                     }
@@ -1075,7 +966,7 @@ if(productInfo && productInfo.variations){
             }
         }
     });
-} // <--- KURUNG KURAWAL PENUTUP UNTUK FUNGSI connectToWhatsApp()    
+}
 
 
 // ======================================================
@@ -1084,26 +975,21 @@ if(productInfo && productInfo.variations){
 const app = express();
 const cookieParser = require('cookie-parser');
 const session = require('express-session');
-const path = require('path'); // Diperlukan untuk rute QR
+const path = require('path');
 
-// --- Setup Middleware untuk Express ---
-app.set('view engine', 'ejs'); // Set EJS sebagai view engine
+app.set('view engine', 'ejs');
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // Untuk membaca data dari form
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(session({
-    secret: 'rahasia-tersembunyi-nusa-karsa', // Ganti dengan secret key acak kamu sendiri
+    secret: 'rahasia-tersembunyi-nusa-karsa',
     resave: false,
     saveUninitialized: true,
-    cookie: { maxAge: 1000 * 60 * 60 * 24 } // Cookie berlaku selama 1 hari
+    cookie: { maxAge: 1000 * 60 * 60 * 24 }
 }));
 
-
-// --- RUTE PUBLIK (STATUS & QR) ---
-
-// Rute utama untuk menampilkan status bot
 app.get('/', (req, res) => {
-    const uptime = formatUptime(botStartTime); // Memanggil fungsi uptime
+    const uptime = formatUptime(botStartTime);
     res.status(200).send(`
         <style>
             body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; color: #333; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
@@ -1113,7 +999,7 @@ app.get('/', (req, res) => {
             .footer { margin-top: 20px; font-size: 0.8em; color: #777; }
         </style>
         <div class="container">
-            <h1>🚀 Bot Nusa Karsa is Running!</h1>
+            <h1>🚀 Bot NUSA KARSA is Running!</h1>
             <p>Server is active and ready to process requests.</p>
             <div class="footer">
                 Version: ${BOT_VERSION}<br>
@@ -1124,7 +1010,6 @@ app.get('/', (req, res) => {
     `);
 });
 
-// Rute untuk menampilkan QR Code
 app.get('/qr', (req, res) => {
     const qrImagePath = path.join(__dirname, 'qr.png');
     if (fs.existsSync(qrImagePath)) {
@@ -1134,10 +1019,6 @@ app.get('/qr', (req, res) => {
     }
 });
 
-
-// --- SISTEM AUTENTIKASI & DASHBOARD ADMIN ---
-
-// Middleware untuk Cek Login
 const checkAuth = (req, res, next) => {
     if (req.session.isLoggedIn) {
         next();
@@ -1146,7 +1027,6 @@ const checkAuth = (req, res, next) => {
     }
 };
 
-// Rute Halaman Login
 app.get('/login', (req, res) => {
     res.render('login', { error: null });
 });
@@ -1161,7 +1041,6 @@ app.post('/login', (req, res) => {
     }
 });
 
-// Rute Logout
 app.get('/logout', (req, res) => {
     req.session.destroy(err => {
         if (err) {
@@ -1172,14 +1051,12 @@ app.get('/logout', (req, res) => {
     });
 });
 
-// Rute Halaman Dashboard Utama
 app.get('/admin', checkAuth, (req, res) => {
     const products = loadData(productsFilePath, []);
     const stock = loadData(stockFilePath, {});
     res.render('dashboard', { products, stock });
 });
 
-// Rute untuk memproses penambahan stok
 app.post('/admin/add-stock', checkAuth, (req, res) => {
     const { variationCode, stockItems } = req.body;
     if (!variationCode || !stockItems) {
@@ -1202,12 +1079,10 @@ app.post('/admin/add-stock', checkAuth, (req, res) => {
     }
 });
 
-// Rute untuk Halaman Tambah Produk
 app.get('/admin/add-product', checkAuth, (req, res) => {
     res.render('add-product');
 });
 
-// Rute untuk memproses penambahan produk/varian
 app.post('/admin/add-product', checkAuth, (req, res) => {
     const { productId, productName, description, variationCode, variationName, price } = req.body;
     try {
@@ -1241,7 +1116,6 @@ app.post('/admin/add-product', checkAuth, (req, res) => {
     }
 });
 
-// Rute untuk Halaman Edit Produk
 app.get('/admin/edit-product/:productId', checkAuth, (req, res) => {
     const { productId } = req.params;
     const products = loadData(productsFilePath, []);
@@ -1253,7 +1127,6 @@ app.get('/admin/edit-product/:productId', checkAuth, (req, res) => {
     }
 });
 
-// Rute untuk memproses penyimpanan edit produk
 app.post('/admin/save-product', checkAuth, (req, res) => {
     const { productId, productName, description } = req.body;
     try {
@@ -1273,7 +1146,6 @@ app.post('/admin/save-product', checkAuth, (req, res) => {
     }
 });
 
-// Rute untuk menghapus produk
 app.post('/admin/delete-product', checkAuth, (req, res) => {
     const { productId } = req.body;
     try {
@@ -1287,7 +1159,6 @@ app.post('/admin/delete-product', checkAuth, (req, res) => {
     }
 });
 
-// Rute untuk menghapus varian
 app.post('/admin/delete-variation', checkAuth, (req, res) => {
     const { fullVariationCode } = req.body;
     try {
@@ -1307,7 +1178,6 @@ app.post('/admin/delete-variation', checkAuth, (req, res) => {
     }
 });
 
-// Rute untuk mengatur total terjual
 app.post('/admin/set-total-sold', checkAuth, (req, res) => {
     const { productId, totalSold } = req.body;
     try {
@@ -1326,7 +1196,6 @@ app.post('/admin/set-total-sold', checkAuth, (req, res) => {
 
 
 // --- WEBHOOK UNTUK NOTIFIKASI PEMBAYARAN ---
-
 app.post('/webhook', async (req, res) => {
     const ownerJid = `${OWNER_NUMBER}@s.whatsapp.net`;
     try {
@@ -1341,23 +1210,22 @@ app.post('/webhook', async (req, res) => {
         }
         
         if (transactionStatus === 'settlement' || transactionStatus === 'capture') {
-            // Di dalam app.post('/webhook', ...
-            const transactions = loadData(transactionsFilePath, {}); // <-- Tambahkan parameter kedua {}
-            const orderData = transactions[orderId];
-            
-            if (!orderData) {
-                console.warn(`[WEBHOOK PERINGATAN] Notifikasi diterima untuk Order ID (${orderId}) yang tidak ditemukan.`);
-                await sock.sendMessage(ownerJid, { text: `⚠️ *Peringatan Keamanan*\n\nBot menerima notifikasi pembayaran untuk Order ID ${orderId}, tapi data pesanan tidak ditemukan.` });
-                return res.status(200).send('OK - order not found');
+            const transactionDataString = await redis.get(orderId);
+
+            if (!transactionDataString) {
+                console.warn(`[REDIS-WEBHOOK] Order ID (${orderId}) tidak ditemukan di Redis.`);
+                await sock.sendMessage(ownerJid, { text: `⚠️ *Peringatan Keamanan*\n\nBot menerima notifikasi pembayaran untuk Order ID ${orderId}, tapi data pesanan tidak ditemukan di Redis.` });
+                return res.status(200).send('OK - order not found in Redis');
             }
+
+            const orderData = JSON.parse(transactionDataString);
 
             if (orderData.status !== 'PENDING') {
                 console.log(`[WEBHOOK INFO] Notifikasi untuk Order ID (${orderId}) diterima, tapi statusnya sudah '${orderData.status}'. Diabaikan.`);
                 return res.status(200).send('OK - already processed');
             }
             
-            const stock = loadData(stockFilePath);
-            
+            const stock = loadData(stockFilePath, {});
             let deliveredItems = [];
             const stockKey = orderData.variationCode.toUpperCase();
 
@@ -1370,8 +1238,22 @@ app.post('/webhook', async (req, res) => {
             if (deliveredItems.length === orderData.quantity) {
                 orderData.status = "COMPLETED";
                 saveData(stockFilePath, stock);
-                saveData(transactionsFilePath, transactions);
-                console.log(`[DATA UPDATE] Order ID ${orderId} status diubah ke COMPLETED dan stok dikurangi.`);
+
+                // Simpan juga riwayat transaksi ke file user untuk fitur /riwayat
+                const users = loadData(usersFilePath, {});
+                if (users[orderData.userId]) {
+                    if (!users[orderData.userId].transactions) {
+                        users[orderData.userId].transactions = [];
+                    }
+                    users[orderData.userId].transactions.push(orderId);
+                    saveData(usersFilePath, users);
+                }
+                
+                // Update status di Redis jadi COMPLETED agar tidak diproses ganda
+                // dan bisa disimpan untuk riwayat jika diperlukan nanti
+                await redis.set(orderId, JSON.stringify(orderData), { ex: 86400 }); // Simpan 1 hari
+                console.log(`[REDIS UPDATE] Order ID ${orderId} status diubah ke COMPLETED.`);
+
                 try {
                     const transactionDate = new Date(orderData.createdAt).toLocaleString('id-ID', {
                         timeZone: 'Asia/Jakarta', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -1419,7 +1301,7 @@ Berikut adalah detail produk yang Kamu beli, harap segera amankan data yang tela
 // --- JALANKAN SEMUANYA ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    ensureDbFolderExists(); // Pastikan folder database ada sebelum bot jalan
+    ensureDbFolderExists();
     console.log(`[SERVER] Server berjalan di port ${PORT}`);
-    connectToWhatsApp(); // Jalankan bot SETELAH server web siap
+    connectToWhatsApp();
 });
