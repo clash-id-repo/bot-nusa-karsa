@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DASHBOARD - NUSA KARSA</title>
+    <title>Dashboard - NUSA KARSA</title>
     <style>
         body { font-family: sans-serif; margin: 0; background-color: #f9f9f9; }
         header { background-color: #333; color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
@@ -13,8 +13,13 @@
         table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
         th, td { padding: 0.8rem; text-align: left; border-bottom: 1px solid #ddd; }
         th { background-color: #f2f2f2; }
-        select, textarea, button { width: 100%; padding: 0.7rem; margin-top: 0.5rem; border: 1px solid #ccc; border-radius: 4px; }
-        button { background-color: #28a745; color: white; cursor: pointer; }
+        select, textarea, button, input { width: 100%; padding: 0.7rem; margin-top: 0.5rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button, .btn { padding: 0.5rem 1rem; color: white; cursor: pointer; text-decoration: none; display: inline-block; border: none; border-radius: 4px; }
+        .btn-add { background-color: #007bff; }
+        .btn-edit { background-color: #ffc107; color: #333; }
+        .btn-delete { background-color: #dc3545; }
+        .form-inline { display: inline; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
     </style>
 </head>
 <body>
@@ -24,51 +29,91 @@
     </header>
 
     <div class="container">
-        <div class="card">
-            <h2>Tambah Stok</h2>
-            <form action="/admin/add-stock" method="POST">
-                <label for="variationCode">Pilih Varian Produk:</label>
-                <select name="variationCode" id="variationCode" required>
-                    <% products.forEach(product => { %>
-                        <% product.variations.forEach(v => { %>
-                            <option value="<%= product.id %>-<%= v.code %>"><%= product.name %> - <%= v.name %></option>
-                        <% }) %>
-                    <% }) %>
-                </select>
+        
+        <a href="/admin/add-product" class="btn btn-add" style="margin-bottom: 2rem; width: auto;">+ Tambah Produk / Varian Baru</a>
 
-                <label for="stockItems" style="display: block; margin-top: 1rem;">Data Stok (satu per baris):</label>
-                <textarea name="stockItems" id="stockItems" rows="5" placeholder="akun1@email.com:pass1&#10;akun2@email.com:pass2" required></textarea>
-                
-                <button type="submit">Tambah Stok</button>
-            </form>
+        <div class="grid">
+            <div class="card">
+                <h2>Tambah Stok</h2>
+                <form action="/admin/add-stock" method="POST">
+                    <label for="variationCode">Pilih Varian Produk:</label>
+                    <select name="variationCode" required>
+                        <% products.forEach(product => { %>
+                            <% product.variations.forEach(v => { %>
+                                <option value="<%= product.id %>-<%= v.code %>"><%= product.name %> - <%= v.name %></option>
+                            <% }) %>
+                        <% }) %>
+                    </select>
+
+                    <label for="stockItems" style="display: block; margin-top: 1rem;">Data Stok (satu per baris):</label>
+                    <textarea name="stockItems" rows="3" placeholder="akun1@email.com:pass1&#10;akun2@email.com:pass2" required></textarea>
+                    
+                    <button type="submit" style="background-color: #28a745;">Tambah Stok</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h2>Atur Total Terjual</h2>
+                 <form action="/admin/set-total-sold" method="POST">
+                    <label for="productId">Pilih Produk:</label>
+                    <select name="productId" required>
+                        <% products.forEach(product => { %>
+                            <option value="<%= product.id %>"><%= product.name %></option>
+                        <% }) %>
+                    </select>
+
+                    <label for="totalSold" style="display: block; margin-top: 1rem;">Jumlah Terjual Baru:</label>
+                    <input type="number" name="totalSold" required placeholder="Contoh: 1500">
+                    
+                    <button type="submit" style="background-color: #17a2b8;">Atur Jumlah</button>
+                </form>
+            </div>
         </div>
 
         <div class="card">
-            <h2>Stok Saat Ini</h2>
+            <h2>Manajemen Produk & Stok</h2>
             <table>
                 <thead>
                     <tr>
                         <th>Produk</th>
                         <th>Varian</th>
-                        <th>Kode Varian</th>
-                        <th>Sisa Stok</th>
+                        <th>Stok</th>
+                        <th>Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
                     <% products.forEach(product => { %>
+                        <tr style="background-color: #f8f9fa;">
+                            <td><b><%= product.name %></b> (ID: <%= product.id %>)</td>
+                            <td>Terjual: <%= product.totalSold || 0 %></td>
+                            <td></td>
+                            <td>
+                                <a href="/admin/edit-product/<%= product.id %>" class="btn btn-edit">Edit</a>
+                                <form action="/admin/delete-product" method="POST" class="form-inline" onsubmit="return confirm('Yakin ingin menghapus produk <%= product.name %> beserta semua varian dan stoknya?');">
+                                    <input type="hidden" name="productId" value="<%= product.id %>">
+                                    <button type="submit" class="btn btn-delete">Hapus</button>
+                                </form>
+                            </td>
+                        </tr>
                         <% product.variations.forEach(v => { %>
                             <% const fullCode = `${product.id}-${v.code}`; %>
                             <tr>
-                                <td><%= product.name %></td>
-                                <td><%= v.name %></td>
-                                <td><code><%= fullCode %></code></td>
+                                <td></td>
+                                <td><%= v.name %> (Kode: <%= v.code %>)</td>
                                 <td><b><%= stock[fullCode.toUpperCase()] ? stock[fullCode.toUpperCase()].length : 0 %></b> item</td>
+                                <td>
+                                     <form action="/admin/delete-variation" method="POST" class="form-inline" onsubmit="return confirm('Yakin ingin menghapus varian <%= v.name %>?');">
+                                        <input type="hidden" name="fullVariationCode" value="<%= fullCode %>">
+                                        <button type="submit" class="btn btn-delete">Hapus Varian</button>
+                                    </form>
+                                </td>
                             </tr>
                         <% }) %>
                     <% }) %>
                 </tbody>
             </table>
         </div>
+
     </div>
 </body>
 </html>
