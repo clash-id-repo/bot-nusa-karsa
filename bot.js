@@ -51,8 +51,58 @@ const blockedFilePath = `${dataDir}/blocked.json`;
 // ======================================================
 // TEKS PANDUAN & OWNER
 // ======================================================
-const PANDUAN_TEXT = `*❓ PANDUAN MEMBELI PRODUK DI NUSA KARSA*\n\nSelamat datang di NUSA KARSA! 👋\nNUSA KARSA adalah platform toko digital yang menyediakan berbagai produk digital yang bisa kamu beli secara otomatis melalui bot auto order WhatsApp ini. Kami menawarkan kemudahan dan kecepatan dalam mendapatkan produk digital yang kamu butuhkan.\n\n⭐️ *Keuntungan pesan di Bot kami?*\n> ✅ Tanpa biaya layanan tambahan.\n> ✅ Pesanan diproses otomatis 24/7.\n> ✅ Pengiriman produk instan setelah pembayaran.\n> ✅ Stok produk selalu update secara real-time.\n\n📌 *Syarat Pembelian*\n> 1. Memiliki aplikasi E-Wallet (GoPay, OVO, DANA, dll) atau Mobile Banking yang mendukung pembayaran via *QRIS*.\n> 2. Nomor WhatsApp Kamu aktif untuk menerima detail produk.\n> 3. Siap menyelesaikan pembayaran sebelum QRIS kedaluwarsa (*5 menit*).\n\n📖 *Tutorial Lengkap Pembelian*\n> *Langkah 1: Lihat Katalog*\n> Ketik perintah \\`/katalog\\` untuk melihat daftar produk. Bot akan membalas dengan daftar produk yang diberi nomor.\n\n> *Langkah 2: Lihat Detail Produk*\n> Balas pesan katalog dengan mengetik *nomor produk* yang Kamu inginkan (misal: \\`1\\`). Bot akan menampilkan detail lengkap, termasuk variasi produk dan kodenya.\n \n> *Langkah 3: Lakukan Pembelian*\n> Setelah melihat detail, ketik perintah \\`/beli\\` diikuti dengan *KODE VARIAN* unik dan jumlah.\n> > Contoh: \\`/beli CANVA-EDU 1\\`\n \n> *Langkah 4: Konfirmasi Pesanan*\n> Bot akan memberikan rincian pesanan Kamu. Baca dengan teliti, lalu balas dengan \\`YA\\` untuk melanjutkan ke pembayaran, atau \\`BATAL\\` jika tidak jadi.\n \n> *Langkah 5: Lakukan Pembayaran*\n> Scan QRIS yang dikirim oleh bot menggunakan aplikasi pembayaran Kamu. Pastikan Kamu membayar dalam waktu kurang dari 5 menit.\n \n> *Langkah 6: Terima Produk Kamu!*\n> Setelah pembayaran berhasil terdeteksi, bot akan *otomatis* mengirimkan detail produk ke chat Kamu.\n\n*Butuh Bantuan Lain?*\n> Jika Kamu masih bingung, jangan ragu untuk bertanya pada Customer Service AI kami dengan perintah:\n> \\`/cs\\`\n\n❕ *Catatan Penting*\n> 1. Semua transaksi bersifat final. Kesalahan input oleh pengguna bukan merupakan tanggung jawab kami.\n> 2. Harap segera amankan detail akun/produk yang Kamu terima setelah transaksi berhasil.\n> 3. Jika terjadi masalah serius, segera hubungi Owner dengan perintah \\`/owner\\`.\n`;
-const OWNER_TEXT = `*👨‍💻 INFORMASI OWNER*\\n\\nJika Kamu menemukan kendala, bug, atau memiliki pertanyaan bisnis, silakan hubungi kami.\\n\\n> *📞 Nomor WhatsApp:* wa.me/${OWNER_NUMBER}\\n> *Catatan:* Mohon untuk chat saja dan jelaskan keperluan Kamu dengan jelas.`;
+const PANDUAN_TEXT = `*❓ PANDUAN MEMBELI PRODUK DI NUSA KARSA*
+
+Selamat datang di NUSA KARSA! 👋
+NUSA KARSA adalah platform toko digital yang menyediakan berbagai produk digital yang bisa kamu beli secara otomatis melalui bot auto order WhatsApp ini. Kami menawarkan kemudahan dan kecepatan dalam mendapatkan produk digital yang kamu butuhkan.
+
+⭐️ *Keuntungan pesan di Bot kami?*
+> ✅ Tanpa biaya layanan tambahan.
+> ✅ Pesanan diproses otomatis 24/7.
+> ✅ Pengiriman produk instan setelah pembayaran.
+> ✅ Stok produk selalu update secara real-time.
+
+📌 *Syarat Pembelian*
+> 1. Memiliki aplikasi E-Wallet (GoPay, OVO, DANA, dll) atau Mobile Banking yang mendukung pembayaran via *QRIS*.
+> 2. Nomor WhatsApp Kamu aktif untuk menerima detail produk.
+> 3. Siap menyelesaikan pembayaran sebelum QRIS kedaluwarsa (*5 menit*).
+
+📖 *Tutorial Lengkap Pembelian*
+> *Langkah 1: Lihat Katalog*
+> Ketik perintah \`/katalog\` untuk melihat daftar produk. Bot akan membalas dengan daftar produk yang diberi nomor.
+
+> *Langkah 2: Lihat Detail Produk*
+> Balas pesan katalog dengan mengetik *nomor produk* yang Kamu inginkan (misal: \`1\`). Bot akan menampilkan detail lengkap, termasuk variasi produk dan kodenya.
+ 
+> *Langkah 3: Lakukan Pembelian*
+> Setelah melihat detail, ketik perintah \`/beli\` diikuti dengan *KODE VARIAN* unik dan jumlah.
+> > Contoh: \`/beli CANVA-EDU 1\`
+ 
+> *Langkah 4: Konfirmasi Pesanan*
+> Bot akan memberikan rincian pesanan Kamu. Baca dengan teliti, lalu balas dengan \`YA\` untuk melanjutkan ke pembayaran, atau \`BATAL\` jika tidak jadi.
+ 
+> *Langkah 5: Lakukan Pembayaran*
+> Scan QRIS yang dikirim oleh bot menggunakan aplikasi pembayaran Kamu. Pastikan Kamu membayar dalam waktu kurang dari 5 menit.
+ 
+> *Langkah 6: Terima Produk Kamu!*
+> Setelah pembayaran berhasil terdeteksi, bot akan *otomatis* mengirimkan detail produk ke chat Kamu.
+
+*Butuh Bantuan Lain?*
+> Jika Kamu masih bingung, jangan ragu untuk bertanya pada Customer Service AI kami dengan perintah:
+> \`/cs\`
+
+❕ *Catatan Penting*
+> 1. Semua transaksi bersifat final. Kesalahan input oleh pengguna bukan merupakan tanggung jawab kami.
+> 2. Harap segera amankan detail akun/produk yang Kamu terima setelah transaksi berhasil.
+> 3. Jika terjadi masalah serius, segera hubungi Owner dengan perintah \`/owner\`.
+`;
+const OWNER_TEXT = `*👨‍💻 INFORMASI OWNER*
+
+Jika Kamu menemukan kendala, bug, atau memiliki pertanyaan bisnis, silakan hubungi kami.
+
+> *📞 Nomor WhatsApp:* wa.me/${OWNER_NUMBER}
+> *Catatan:* Mohon untuk chat saja dan jelaskan keperluan Kamu dengan jelas.`;
+
 
 // ======================================================
 // FUNGSI PEMUATAN & PENYIMPANAN DATA
