@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DASHBOARD - NUSA KARSA</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; background-color: #f9f9f9; }
+        header { background-color: #333; color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+        header a { color: #ffc107; text-decoration: none; }
+        .container { padding: 2rem; }
+        .card { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th, td { padding: 0.8rem; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #f2f2f2; }
+        select, textarea, button { width: 100%; padding: 0.7rem; margin-top: 0.5rem; border: 1px solid #ccc; border-radius: 4px; }
+        button { background-color: #28a745; color: white; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>NUSA KARSA Dashboard</h1>
+        <a href="/logout">Logout</a>
+    </header>
+
+    <div class="container">
+        <div class="card">
+            <h2>Tambah Stok</h2>
+            <form action="/admin/add-stock" method="POST">
+                <label for="variationCode">Pilih Varian Produk:</label>
+                <select name="variationCode" id="variationCode" required>
+                    <% products.forEach(product => { %>
+                        <% product.variations.forEach(v => { %>
+                            <option value="<%= product.id %>-<%= v.code %>"><%= product.name %> - <%= v.name %></option>
+                        <% }) %>
+                    <% }) %>
+                </select>
+
+                <label for="stockItems" style="display: block; margin-top: 1rem;">Data Stok (satu per baris):</label>
+                <textarea name="stockItems" id="stockItems" rows="5" placeholder="akun1@email.com:pass1&#10;akun2@email.com:pass2" required></textarea>
+                
+                <button type="submit">Tambah Stok</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>Stok Saat Ini</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Produk</th>
+                        <th>Varian</th>
+                        <th>Kode Varian</th>
+                        <th>Sisa Stok</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% products.forEach(product => { %>
+                        <% product.variations.forEach(v => { %>
+                            <% const fullCode = `${product.id}-${v.code}`; %>
+                            <tr>
+                                <td><%= product.name %></td>
+                                <td><%= v.name %></td>
+                                <td><code><%= fullCode %></code></td>
+                                <td><b><%= stock[fullCode.toUpperCase()] ? stock[fullCode.toUpperCase()].length : 0 %></b> item</td>
+                            </tr>
+                        <% }) %>
+                    <% }) %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>
