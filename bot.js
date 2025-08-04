@@ -17,7 +17,7 @@ console.log('[ENV] OWNER_NUMBER dimuat:', process.env.OWNER_NUMBER);
 const OWNER_NUMBER = process.env.OWNER_NUMBER || 'gantinomormu';
 const MIDTRANS_SERVER_KEY = process.env.MIDTRANS_SERVER_KEY || 'ganti_kunci_server_midtrans';
 const FERDEV_API_KEY = "key-arh";
-const BOT_VERSION = "3.2 - Management Edition Final";
+const BOT_VERSION = "3.2 - Beta";
 
 let botJid = '';
 let sock = null; 
@@ -599,7 +599,7 @@ async function connectToWhatsApp() {
                         
                         const totalPrice = foundVariation.price * quantity;
                         let confirmationMessage = `*🛒 KONFIRMASI PESANAN*\n\n`;
-                        confirmationMessage += `Kamu akan membeli:\n`;
+                        confirmationMessage += `*Kamu akan membeli:*\n`;
                         confirmationMessage += `> *Produk:* ${foundProduct.name} - ${foundVariation.name}\n`;
                         confirmationMessage += `> *Jumlah:* ${quantity}\n`;
                         confirmationMessage += `> *Total Harga:* Rp ${totalPrice.toLocaleString('id-ID')}\n\n`;
@@ -840,7 +840,7 @@ if(variation) totalRevenue += variation.price * t.quantity;
                     }
                     case '/hapusproduk': {
                         if (senderId !== ownerJid) return;
-                        const [productId] = args;
+                        const [productId]_ = args;
                         if (!productId) {
                             await sendFormattedMessage(from, "Format salah. Gunakan: `/hapusproduk <ID_PRODUK>`");
                             reactionEmoji = '❓';
@@ -1078,9 +1078,95 @@ if(productInfo && productInfo.variations){
 } // <--- KURUNG KURAWAL PENUTUP UNTUK FUNGSI connectToWhatsApp()    
 
 
-//  SERVER WEB (EXPRESS) UNTUK WEBHOOK & QR ---
+// ======================================================
+// SERVER WEB (EXPRESS) UNTUK WEBHOOK, QR, & DASHBOARD
+// ======================================================
 const app = express();
+const cookieParser = require('cookie-parser');
+const session = require('express-session');
+
+// --- Setup Middleware untuk Express ---
+app.set('view engine', 'ejs'); // Set EJS sebagai view engine
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // Untuk membaca data dari form
+app.use(cookieParser());
+app.use(session({
+    secret: 'rahasia-tersembunyi-nusa-karsa', // Ganti dengan secret key acak kamu sendiri
+    resave: false,
+    saveUninitialized: true,
+    cookie: { maxAge: 1000 * 60 * 60 * 24 } // Cookie berlaku selama 1 hari
+}));
+
+// --- Middleware untuk Cek Login ---
+const checkAuth = (req, res, next) => {
+    if (req.session.isLoggedIn) {
+        next();
+    } else {
+        res.redirect('/login');
+    }
+};
+
+// --- Rute Halaman Login ---
+app.get('/login', (req, res) => {
+    res.render('login', { error: null });
+});
+
+app.post('/login', (req, res) => {
+    const adminPassword = process.env.ADMIN_PASSWORD || "admin123"; // Ganti password default di file .env kamu
+    if (req.body.password === adminPassword) {
+        req.session.isLoggedIn = true;
+        res.redirect('/admin');
+    } else {
+        res.render('login', { error: 'Password salah!' });
+    }
+});
+
+// --- Rute Logout ---
+app.get('/logout', (req, res) => {
+    req.session.destroy(err => {
+        if (err) {
+            return res.redirect('/admin');
+        }
+        res.clearCookie('connect.sid');
+        res.redirect('/login');
+    });
+});
+
+// --- Rute Halaman Dashboard Utama ---
+app.get('/admin', checkAuth, (req, res) => {
+    const products = loadData(productsFilePath, []);
+    const stock = loadData(stockFilePath, {});
+    res.render('dashboard', { products, stock });
+});
+
+// --- Rute untuk memproses penambahan stok ---
+app.post('/admin/add-stock', checkAuth, (req, res) => {
+    const { variationCode, stockItems } = req.body;
+    if (!variationCode || !stockItems) {
+        return res.status(400).send('Data tidak lengkap.');
+    }
+
+    try {
+        const stock = loadData(stockFilePath, {});
+        const upperVariationCode = variationCode.toUpperCase();
+        
+        // Memecah item stok berdasarkan baris baru dan memfilter baris kosong
+        const newStockItems = stockItems.split(/\r?\n/).filter(line => line.trim() !== '');
+
+        if (!stock[upperVariationCode]) {
+            stock[upperVariationCode] = [];
+        }
+        stock[upperVariationCode].push(...newStockItems);
+        saveData(stockFilePath, stock);
+        
+        console.log(`[DASHBOARD] Stok untuk ${upperVariationCode} berhasil ditambahkan sebanyak ${newStockItems.length} item.`);
+        res.redirect('/admin');
+    } catch (error) {
+        console.error('[DASHBOARD ERROR] Gagal menambah stok:', error);
+        res.status(500).send('Gagal menyimpan stok.');
+    }
+});
+
 
 // Endpoint untuk cek status server
 app.get('/', (req, res) => {
@@ -1118,9 +1204,7 @@ app.post('/webhook', async (req, res) => {
                     if (item) deliveredItems.push(item);
                 }
 
-                // --- PERBAIKAN 2B & 3 DIMULAI DI SINI ---
                 if (deliveredItems.length > 0) {
-                    // Membuat pesan struk yang lebih detail
                     const transactionDate = new Date(orderData.createdAt).toLocaleString('id-ID', {
                         timeZone: 'Asia/Jakarta',
                         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -1130,20 +1214,19 @@ app.post('/webhook', async (req, res) => {
                     const productMessage = `
 *✅ PEMBAYARAN BERHASIL*
 
-Terima kasih telah berbelanja di NUSA KARSA. Pesananmu telah berhasil diproses.
+Terima kasih telah berbelanja di NUSA KARSA. Pesananmu telah berhasil diproses ✨
 
-🧾 *STRUK PEMBELIAN*
+Berikut adalah detail produk yang Kamu beli, harap segera amankan data yang telah diberikan:
+
+🧾 *INVOICE PEMBELIAN*
 > *Nomor Pesanan:* \`${orderId}\`
 > *Tanggal Transaksi:* ${transactionDate} WIB
 > *Detail Produk:* ${orderData.productName}
 > *Jumlah:* ${orderData.quantity}
-
-Berikut adalah detail produk yang Kamu beli, harap segera amankan data yang telah diberikan:
-\`\`\`${deliveredItems.join('\n')}\`\`\`
+> *Data:* \`\`\`${deliveredItems.join('\n')}\`\`\`
 `;
                     await sendFormattedMessage(orderData.userId, productMessage);
 
-                    // Menghapus pesan tagihan QRIS
                     if (orderData.messageKey) {
                         try {
                             await sock.sendMessage(orderData.userId, { delete: orderData.messageKey });
@@ -1153,7 +1236,6 @@ Berikut adalah detail produk yang Kamu beli, harap segera amankan data yang tela
                         }
                     }
 
-                    // Update data user, produk, transaksi, dan stok
                     const users = loadData(usersFilePath);
                     if (users[orderData.userId]) {
                         if (!users[orderData.userId].transactions) users[orderData.userId].transactions = [];
@@ -1178,7 +1260,6 @@ Berikut adalah detail produk yang Kamu beli, harap segera amankan data yang tela
                     await sendFormattedMessage(orderData.userId, `Mohon maaf, terjadi masalah: stok produk habis tepat saat pembayaranmu diproses. Silakan hubungi Owner dengan menyertakan ID Pesanan ini untuk penanganan lebih lanjut: \`${orderId}\``);
                     await sendFormattedMessage(`${OWNER_NUMBER}@s.whatsapp.net`, `⚠️ PERHATIAN: Stok habis untuk pesanan ${orderId}`);
                 }
-                // --- AKHIR PERBAIKAN ---
             }
         }
         res.status(200).send('OK');
