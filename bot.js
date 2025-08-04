@@ -157,7 +157,7 @@ function createHeaderQuote(from) {
         },
         message: {
             // Teks yang statis dan profesional untuk header
-            conversation: "NUSA KARSA © 2025"
+            conversation: `*NUSA KARSA*\nSERVER TIME : ${getDynamicGreeting().serverTime}`
         }
     };
 }
@@ -386,7 +386,7 @@ async function connectToWhatsApp() {
                         product.variations.forEach(v => {
                             const variationCode = `${product.id}-${v.code}`;
                             const stockCount = stock[variationCode.toUpperCase()] ? stock[variationCode.toUpperCase()].length : 0;
-                            detailMessage += `> Kode Varian: \`${variationCode}\` \n> Nama/Type Varian: \`${v.name}\` \n> Harga: Rp ${v.price.toLocaleString('id-ID')} \n> Stok: *${stockCount}*\n`;
+                            detailMessage += `> Kode Varian: \`${variationCode}\` \n> Type: \`${v.name}\` \n> Harga: Rp ${v.price.toLocaleString('id-ID')} \n> Stok: *${stockCount}*\n`;
                         });
                         
                         const refreshTime = DateTime.now().setZone('Asia/Jakarta').toFormat('HH.mm.ss');
@@ -666,7 +666,7 @@ async function connectToWhatsApp() {
                                 const productInfo = products.find(p => p.id === productId);
                                 if (productInfo) {
                                     popularMessage += `\n*${index + 1}. ${productInfo.name}*`;
-                                    popularMessage += `\n   - _Terjual ${sold} unit_`;
+                                    popularMessage += `\n   - _Terjual ${sold} pcs_`;
                                 }
                             });
                         }
@@ -686,8 +686,10 @@ async function connectToWhatsApp() {
                                 const products = loadData(productsFilePath, []);
                                 const product = products.find(p => p.id === t.productId);
                                 if (product && product.variations) {
-                                    const variation = product.variations.find(v => v.code.toUpperCase() === t.variationCode.toUpperCase());
-                                    if(variation) userTotalSpent += variation.price * t.quantity;
+                                    // ... di dalam case '/info', bagian userTransactions.forEach ...
+// PERBAIKAN: Cocokkan dengan KODE LENGKAP
+const variation = product.variations.find(v => `${product.id}-${v.code}`.toUpperCase() === t.variationCode.toUpperCase());
+if(variation) userTotalSpent += variation.price * t.quantity;
                                 }
                             }
                         });
@@ -699,8 +701,10 @@ async function connectToWhatsApp() {
                                 const products = loadData(productsFilePath, []);
                                 const product = products.find(p => p.id === t.productId);
                                 if (product && product.variations) {
-                                    const variation = product.variations.find(v => v.code.toUpperCase() === t.variationCode.toUpperCase());
-                                    if(variation) totalRevenue += variation.price * t.quantity;
+                                    // ... di dalam case '/info', bagian Object.values(transactions).forEach ...
+// PERBAIKAN: Cocokkan dengan KODE LENGKAP
+const variation = product.variations.find(v => `${product.id}-${v.code}`.toUpperCase() === t.variationCode.toUpperCase());
+if(variation) totalRevenue += variation.price * t.quantity;
                                 }
                             }
                         });
@@ -713,7 +717,7 @@ async function connectToWhatsApp() {
                         infoMessage += `└ Username : ${userName}\n`;
                         infoMessage += `└ Total Belanja : Rp. ${userTotalSpent.toLocaleString('id-ID')}\n\n`;
                         infoMessage += `*BOT Stats :*\n`;
-                        infoMessage += `└ Terjual : ${totalSold.toLocaleString('id-ID')} pcs\n`;
+                        infoMessage += `└ Produk Terjual : ${totalSold.toLocaleString('id-ID')} pcs\n`;
                         infoMessage += `└ Total Pendapatan : Rp. ${totalRevenue.toLocaleString('id-ID')}\n`;
                         infoMessage += `└ Total User : ${totalUsers}\n`;
                         infoMessage += `└ Uptime : ${uptime}\n`;
@@ -938,12 +942,14 @@ async function connectToWhatsApp() {
                                     const productInfo = products.find(p => p.id === t.productId);
                                     stats[t.productId] = { name: productInfo ? productInfo.name : t.productId, sold: 0, revenue: 0 };
                                 }
-                                let price = 0;
-                                const productInfo = products.find(p => p.id === t.productId);
-                                if(productInfo && productInfo.variations){
-                                    const variationInfo = productInfo.variations.find(v => v.code === t.variationCode);
-                                    if(variationInfo) price = variationInfo.price;
-                                }
+                                // ... di dalam case '/statistik' ...
+let price = 0;
+const productInfo = products.find(p => p.id === t.productId);
+if(productInfo && productInfo.variations){
+    // PERBAIKAN: Cocokkan dengan KODE LENGKAP (`CANVA-EDU`), bukan hanya `EDU`
+    const variationInfo = productInfo.variations.find(v => `${productInfo.id}-${v.code}`.toUpperCase() === t.variationCode.toUpperCase());
+    if(variationInfo) price = variationInfo.price;
+}
                                 stats[t.productId].sold += t.quantity;
                                 stats[t.productId].revenue += t.quantity * price;
                                 totalRevenue += t.quantity * price;
