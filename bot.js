@@ -43,10 +43,9 @@ const blockedFilePath = `${dataDir}/blocked.json`;
 // ======================================================
 // TEKS PANDUAN & OWNER
 // ======================================================
-const PANDUAN_TEXT = `*❓ PANDUAN MEMBELI PRODUK DI NUSA KARSA ❓*
+const PANDUAN_TEXT = `*❓ PANDUAN MEMBELI PRODUK DI NUSA KARSA*
 
 Selamat datang di NUSA KARSA! 👋
-
 NUSA KARSA adalah platform toko digital yang menyediakan berbagai produk digital yang bisa kamu beli secara otomatis melalui bot auto order WhatsApp ini. Kami menawarkan kemudahan dan kecepatan dalam mendapatkan produk digital yang kamu butuhkan.
 
 ⭐️ *Keuntungan pesan di Bot kami?*
@@ -94,7 +93,6 @@ const OWNER_TEXT = `*👨‍💻 INFORMASI OWNER*\n\nJika Kamu menemukan kendala
 // ======================================================
 // FUNGSI PEMUATAN & PENYIMPANAN DATA
 // ======================================================
-// Fungsi ini ditambahkan untuk memastikan folder ada sebelum bot jalan
 function ensureDbFolderExists() {
     if (!fs.existsSync(dataDir)) {
         fs.mkdirSync(dataDir, { recursive: true });
@@ -147,19 +145,23 @@ function formatUptime(startTime) {
     return `${Math.floor(diff.days)} Hari ${Math.floor(diff.hours)} Jam ${Math.floor(diff.minutes)} Menit ${Math.floor(diff.seconds)} Detik`;
 }
 
+// --- PERBAIKAN 1 DIMULAI DI SINI ---
+// Mengganti header menjadi lebih profesional dan stabil
 function createHeaderQuote(from) {
     return {
         key: {
             remoteJid: from,
+            fromMe: true, // Mengindikasikan pesan ini dari bot itu sendiri
             id: 'NUSA_KARSA_HEADER',
-            fromMe: false,
-            participant: '0@s.whatsapp.net'
+            participant: botJid // JID dari bot
         },
         message: {
-            conversation: `*NUSA KARSA*\nSERVER TIME : ${getDynamicGreeting().serverTime}`
+            // Teks yang statis dan profesional untuk header
+            conversation: "NUSA KARSA © 2025"
         }
     };
 }
+// --- AKHIR PERBAIKAN 1 ---
 
 async function sendFormattedMessage(jid, text, extraOptions = {}) {
     const footer = "\n\n> © NUSA KARSA";
@@ -383,7 +385,7 @@ async function connectToWhatsApp() {
 
                         product.variations.forEach(v => {
                             const variationCode = `${product.id}-${v.code}`;
-                            const stockCount = stock[variationCode] ? stock[variationCode].length : 0;
+                            const stockCount = stock[variationCode.toUpperCase()] ? stock[variationCode.toUpperCase()].length : 0;
                             detailMessage += `> Kode Varian: \`${variationCode}\` \n> Nama/Type Varian: \`${v.name}\` \n> Harga: Rp ${v.price.toLocaleString('id-ID')} \n> Stok: *${stockCount}*\n`;
                         });
                         
@@ -452,21 +454,42 @@ async function connectToWhatsApp() {
 
                         const qrCodeUrl = midtransResponse.data.actions.find(a => a.name === 'generate-qr-code').url;
                         const transactions = loadData(transactionsFilePath, {});
-                        transactions[orderId] = { userId: senderId, productId: product.id, variationCode: variationCode, productName: `${product.name} - ${variation.name}`, quantity: quantity, status: "PENDING", createdAt: new Date().toISOString() };
+                        
+                        // --- PERBAIKAN BUG `variationCode` DIMULAI DI SINI ---
+                        transactions[orderId] = { 
+                            userId: senderId, 
+                            productId: product.id, 
+                            variationCode: variationCode, // Menggunakan `variationCode` lengkap (misal: "CANVA-EDU")
+                            productName: `${product.name} - ${variation.name}`, 
+                            quantity: quantity, 
+                            status: "PENDING", 
+                            createdAt: new Date().toISOString() 
+                        };
+                        // --- AKHIR PERBAIKAN BUG ---
+                        
                         saveData(transactionsFilePath, transactions);
 
-                        const caption = `*🧾 TAGIHAN PEMBAYARAN*\n\nSilakan scan QRIS di atas untuk membayar pesanan \`${orderId}\`. Produk akan otomatis dikirim setelah pembayaran berhasil.\n\n> *PERHATIAN:* Link pembayaran ini akan kedaluwarsa dalam *5 menit*.`;
+                        // --- PERBAIKAN 2A (SIMPAN KUNCI) DIMULAI DI SINI ---
+                        const caption = `*🧾 TAGIHAN PEMBAYARAN*\n\nSilakan scan QRIS di atas untuk membayar pesanan\nID: \`${orderId}\`. Produk akan otomatis dikirim setelah pembayaran berhasil.\n\n*PERHATIAN:* Link pembayaran ini akan kedaluwarsa dalam *5 menit*.`;
                         const sentQRMessage = await sock.sendMessage(from, { image: { url: qrCodeUrl }, caption: caption });
+                        
+                        // Simpan kunci pesan ke dalam data transaksi
+                        transactions[orderId].messageKey = sentQRMessage.key;
+                        saveData(transactionsFilePath, transactions); // Simpan lagi setelah menambahkan kunci
+                        // --- AKHIR PERBAIKAN 2A ---
                         
                         setTimeout(async () => {
                             const currentTransactions = loadData(transactionsFilePath, {});
                             if (currentTransactions[orderId] && currentTransactions[orderId].status === 'PENDING') {
+                                // Hanya hapus pesan jika masih pending dan belum ada kunci (artinya belum dihapus oleh webhook)
+                                if (currentTransactions[orderId].messageKey) {
+                                    await sock.sendMessage(from, { delete: currentTransactions[orderId].messageKey });
+                                }
                                 await sendFormattedMessage(from, `⌛ *WAKTU PEMBAYARAN HABIS*\n\nPembayaran untuk pesanan \`${orderId}\` telah kedaluwarsa dan dibatalkan.`);
-                                await sock.sendMessage(from, { delete: sentQRMessage.key });
                                 delete currentTransactions[orderId];
                                 saveData(transactionsFilePath, currentTransactions);
                             }
-                        }, 305000);
+                        }, 305000); // 5 menit 5 detik
                         reactionEmoji = '⏳';
                         
                     } else if (lowerBody === 'batal') {
@@ -483,7 +506,7 @@ async function connectToWhatsApp() {
 
             if (userState[senderId] && isCmd) {
                 console.log(`[State] Pengguna ${senderId} keluar dari state '${userState[senderId].state}' karena ada perintah baru.`);
-                clearTimeout(userState[senderId].timeoutId);
+                if(userState[senderId].timeoutId) clearTimeout(userState[senderId].timeoutId);
                 delete userState[senderId];
             }
 
@@ -534,73 +557,66 @@ async function connectToWhatsApp() {
                         break;
                     }
                     case '/beli': {
-    const variationCode = args[0];
-    const quantity = parseInt(args[1]) || 1;
+                        const variationCode = args[0];
+                        const quantity = parseInt(args[1]) || 1;
 
-    if (!variationCode) {
-        await sendFormattedMessage(from, "Format salah. Gunakan `/beli <KODE_VARIAN>`.\n\n> Kamu bisa mendapatkan Kode Varian setelah melihat detail produk dari /katalog.");
-        reactionEmoji = '❓';
-        break;
-    }
+                        if (!variationCode) {
+                            await sendFormattedMessage(from, "Format salah. Gunakan `/beli <KODE_VARIAN>`.\n\n> Kamu bisa mendapatkan Kode Varian setelah melihat detail produk dari /katalog.");
+                            reactionEmoji = '❓';
+                            break;
+                        }
 
-    const products = loadData(productsFilePath, []);
-    let foundProduct = null;
-    let foundVariation = null;
+                        const products = loadData(productsFilePath, []);
+                        let foundProduct = null;
+                        let foundVariation = null;
 
-    // Langkah 1: Loop untuk mencari produk di seluruh daftar
-    for (const p of products) {
-        if (p.variations && Array.isArray(p.variations)) {
-            const v = p.variations.find(v => `${p.id}-${v.code}`.toLowerCase() === variationCode.toLowerCase());
-            if (v) {
-                foundProduct = p;
-                foundVariation = v;
-                break; // Hentikan loop jika sudah ketemu
-            }
-        }
-    }
-    
-    // ======================================================
-    // === BAGIAN YANG DIPERBAIKI ===
-    // Langkah 2: Cek HASIL pencarian SETELAH loop selesai
-    // ======================================================
-    if (!foundProduct) {
-        // Jika setelah semua produk dicek dan foundProduct masih null, baru kirim pesan error
-        await sendFormattedMessage(from, `Maaf, kode varian \`${variationCode}\` tidak ditemukan.`);
-        reactionEmoji = '❌';
-        break; // Hentikan case '/beli'
-    }
+                        for (const p of products) {
+                            if (p.variations && Array.isArray(p.variations)) {
+                                const v = p.variations.find(v => `${p.id}-${v.code}`.toLowerCase() === variationCode.toLowerCase());
+                                if (v) {
+                                    foundProduct = p;
+                                    foundVariation = v;
+                                    break; 
+                                }
+                            }
+                        }
+                        
+                        if (!foundProduct) {
+                            await sendFormattedMessage(from, `Maaf, kode varian \`${variationCode}\` tidak ditemukan.`);
+                            reactionEmoji = '❌';
+                            break; 
+                        }
 
-    // Langkah 3: Jika produk ditemukan, lanjutkan logika seperti biasa
-    const stock = loadData(stockFilePath, {});
-    const fullVariationCode = `${foundProduct.id}-${foundVariation.code}`;
-    const availableStock = stock[fullVariationCode.toUpperCase()] ? stock[fullVariationCode.toUpperCase()].length : 0; // Ditambah .toUpperCase() agar konsisten
-    
-    if (availableStock < quantity) {
-        await sendFormattedMessage(from, `Maaf, stok untuk *${foundVariation.name}* tidak mencukupi. Sisa stok: ${availableStock}.`);
-        reactionEmoji = '😥';
-        break;
-    }
-    
-    const totalPrice = foundVariation.price * quantity;
-    let confirmationMessage = `*🛒 KONFIRMASI PESANAN*\n\n`;
-    confirmationMessage += `Kamu akan membeli:\n`;
-    confirmationMessage += `> *Produk:* ${foundProduct.name} - ${foundVariation.name}\n`;
-    confirmationMessage += `> *Jumlah:* ${quantity}\n`;
-    confirmationMessage += `> *Total Harga:* Rp ${totalPrice.toLocaleString('id-ID')}\n\n`;
-    confirmationMessage += `*Panduan Pembayaran:*\n> Pembayaran akan menggunakan QRIS yang akan kedaluwarsa dalam 5 menit. Pastikan Kamu siap untuk melakukan scan.\n\nBalas dengan *YA* untuk melanjutkan, atau *BATAL* untuk membatalkan.`;
-    
-    const timeoutId = setTimeout(() => {
-        if (userState[senderId] && userState[senderId].state === 'awaiting_purchase_confirmation') {
-            delete userState[senderId];
-            sock.sendMessage(from, { text: "⏳ Waktu konfirmasi pembayaran habis, pesanan otomatis dibatalkan." });
-        }
-    }, 300000);
-    
-    userState[senderId] = { state: 'awaiting_purchase_confirmation', variationCode: fullVariationCode.toUpperCase(), quantity: quantity, timeoutId: timeoutId };
-    await sendFormattedMessage(from, confirmationMessage);
-    reactionEmoji = '🤔';
-    break;
-}
+                        const stock = loadData(stockFilePath, {});
+                        const fullVariationCode = `${foundProduct.id}-${foundVariation.code}`;
+                        const availableStock = stock[fullVariationCode.toUpperCase()] ? stock[fullVariationCode.toUpperCase()].length : 0;
+                        
+                        if (availableStock < quantity) {
+                            await sendFormattedMessage(from, `Maaf, stok untuk *${foundVariation.name}* tidak mencukupi. Sisa stok: ${availableStock}.`);
+                            reactionEmoji = '😥';
+                            break;
+                        }
+                        
+                        const totalPrice = foundVariation.price * quantity;
+                        let confirmationMessage = `*🛒 KONFIRMASI PESANAN*\n\n`;
+                        confirmationMessage += `Kamu akan membeli:\n`;
+                        confirmationMessage += `> *Produk:* ${foundProduct.name} - ${foundVariation.name}\n`;
+                        confirmationMessage += `> *Jumlah:* ${quantity}\n`;
+                        confirmationMessage += `> *Total Harga:* Rp ${totalPrice.toLocaleString('id-ID')}\n\n`;
+                        confirmationMessage += `*Panduan Pembayaran:*\n> Pembayaran akan menggunakan QRIS yang akan kedaluwarsa dalam 5 menit. Pastikan Kamu siap untuk melakukan scan.\n\nBalas dengan *YA* untuk melanjutkan, atau *BATAL* untuk membatalkan.`;
+                        
+                        const timeoutId = setTimeout(() => {
+                            if (userState[senderId] && userState[senderId].state === 'awaiting_purchase_confirmation') {
+                                delete userState[senderId];
+                                sock.sendMessage(from, { text: "⏳ Waktu konfirmasi pembayaran habis, pesanan otomatis dibatalkan." });
+                            }
+                        }, 300000);
+                        
+                        userState[senderId] = { state: 'awaiting_purchase_confirmation', variationCode: fullVariationCode.toUpperCase(), quantity: quantity, timeoutId: timeoutId };
+                        await sendFormattedMessage(from, confirmationMessage);
+                        reactionEmoji = '🤔';
+                        break;
+                    }
                     case '/panduan':
                     case '/carabeli': {
                         await sendFormattedMessage(from, PANDUAN_TEXT);
@@ -694,11 +710,11 @@ async function connectToWhatsApp() {
                         let infoMessage = `Halo ${userName} 👋\n\n`;
                         infoMessage += `*User Info :*\n`;
                         infoMessage += `└ ID : ${userId}\n`;
-                        infoMessage += `└ Username : ${userName}\n`; // Mention ditiadakan agar lebih rapi
-                        infoMessage += `└ Total Belanja : Rp. ${userTotalSpent.toLocaleString('id-ID')}\n\n`; // Diubah
+                        infoMessage += `└ Username : ${userName}\n`;
+                        infoMessage += `└ Total Belanja : Rp. ${userTotalSpent.toLocaleString('id-ID')}\n\n`;
                         infoMessage += `*BOT Stats :*\n`;
                         infoMessage += `└ Terjual : ${totalSold.toLocaleString('id-ID')} pcs\n`;
-                        infoMessage += `└ Total Pendapatan : Rp. ${totalRevenue.toLocaleString('id-ID')}\n`; // Diubah
+                        infoMessage += `└ Total Pendapatan : Rp. ${totalRevenue.toLocaleString('id-ID')}\n`;
                         infoMessage += `└ Total User : ${totalUsers}\n`;
                         infoMessage += `└ Uptime : ${uptime}\n`;
                         infoMessage += `└ Ver : ${BOT_VERSION}\n\n`;
@@ -820,7 +836,7 @@ async function connectToWhatsApp() {
                     }
                     case '/hapusproduk': {
                         if (senderId !== ownerJid) return;
-                        const [productId] = args;
+                        const [productId]_ = args;
                         if (!productId) {
                             await sendFormattedMessage(from, "Format salah. Gunakan: `/hapusproduk <ID_PRODUK>`");
                             reactionEmoji = '❓';
@@ -901,7 +917,7 @@ async function connectToWhatsApp() {
                             if (p.variations && p.variations.length > 0) {
                                 p.variations.forEach(v => {
                                     const variationCode = `${p.id}-${v.code}`;
-                                    const stockCount = stock[variationCode] ? stock[variationCode].length : 0;
+                                    const stockCount = stock[variationCode.toUpperCase()] ? stock[variationCode.toUpperCase()].length : 0;
                                     stockMessage += `> \`${v.name}\`: ${stockCount} item\n`;
                                 });
                             } else { stockMessage += `> (Tidak ada variasi)\n`; }
@@ -1095,10 +1111,41 @@ app.post('/webhook', async (req, res) => {
                     const item = stock[orderData.variationCode.toUpperCase()]?.shift();
                     if (item) deliveredItems.push(item);
                 }
-                
+
+                // --- PERBAIKAN 2B & 3 DIMULAI DI SINI ---
                 if (deliveredItems.length > 0) {
-                    const productMessage = `*✅ PEMBAYARAN BERHASIL!*\n\nTerima kasih. Berikut adalah produk yang Kamu beli, harap segera amankan data yang telah diberikan:\n\n\`\`\`${deliveredItems.join('\n')}\`\`\``;
+                    // Membuat pesan struk yang lebih detail
+                    const transactionDate = new Date(orderData.createdAt).toLocaleString('id-ID', {
+                        timeZone: 'Asia/Jakarta',
+                        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+                        hour: '2-digit', minute: '2-digit'
+                    });
+
+                    const productMessage = `
+*✅ PEMBAYARAN BERHASIL*
+
+Terima kasih telah berbelanja di NUSA KARSA. Pesananmu telah berhasil diproses.
+
+🧾 *STRUK PEMBELIAN*
+> *Nomor Pesanan:* \`${orderId}\`
+> *Tanggal Transaksi:* ${transactionDate} WIB
+> *Detail Produk:* ${orderData.productName}
+> *Jumlah:* ${orderData.quantity}
+
+Berikut adalah detail produk yang Kamu beli, harap segera amankan data yang telah diberikan:
+\`\`\`${deliveredItems.join('\n')}\`\`\`
+`;
                     await sendFormattedMessage(orderData.userId, productMessage);
+
+                    // Menghapus pesan tagihan QRIS
+                    if (orderData.messageKey) {
+                        try {
+                            await sock.sendMessage(orderData.userId, { delete: orderData.messageKey });
+                            console.log(`[CLEANUP] Pesan tagihan untuk order ${orderId} berhasil dihapus.`);
+                        } catch (e) {
+                            console.error(`[CLEANUP] Gagal menghapus pesan tagihan untuk order ${orderId}:`, e);
+                        }
+                    }
 
                     // Update data user, produk, transaksi, dan stok
                     const users = loadData(usersFilePath);
@@ -1125,6 +1172,7 @@ app.post('/webhook', async (req, res) => {
                     await sendFormattedMessage(orderData.userId, `Mohon maaf, terjadi masalah: stok produk habis tepat saat pembayaranmu diproses. Silakan hubungi Owner dengan menyertakan ID Pesanan ini untuk penanganan lebih lanjut: \`${orderId}\``);
                     await sendFormattedMessage(`${OWNER_NUMBER}@s.whatsapp.net`, `⚠️ PERHATIAN: Stok habis untuk pesanan ${orderId}`);
                 }
+                // --- AKHIR PERBAIKAN ---
             }
         }
         res.status(200).send('OK');
